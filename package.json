@@ -1,0 +1,34 @@
+{
+  "name": "jewellery-pos-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production POS & Inventory System for Single-Branch Retail Jewellery Store",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:web": "npm run dev --workspace=@jewellery-pos/web",
+    "dev:api": "npm run dev --workspace=@jewellery-pos/api",
+    "build": "npm run build --workspaces --if-present",
+    "test": "node node_modules/vitest/vitest.mjs run",
+    "test:watch": "node node_modules/vitest/vitest.mjs",
+    "db:seed": "npm run db:seed --workspace=@jewellery-pos/api",
+    "db:generate": "node node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node node_modules/drizzle-kit/bin.cjs migrate",
+    "db:push": "node node_modules/drizzle-kit/bin.cjs push",
+    "db:studio": "node node_modules/drizzle-kit/bin.cjs studio"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "drizzle-kit": "^0.31.10",
+    "fastify": "^4.28.1",
+    "typescript": "^5.3.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2"
+  }
+}
