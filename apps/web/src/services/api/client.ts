@@ -227,6 +227,44 @@ class ShowroomApiClient {
 
     return json.data as T;
   }
+
+  public async postBlob(endpoint: string, body?: unknown, options: RequestOptions = {}): Promise<{ blob: Blob; filename?: string }> {
+    const url = this.buildUrl(endpoint, options.params);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/octet-stream, application/json, */*',
+      ...(options.headers as Record<string, string> || {})
+    };
+
+    if (options.idempotencyKey) {
+      headers['Idempotency-Key'] = options.idempotencyKey;
+    }
+
+    const res = await fetch(url, {
+      ...options,
+      method: 'POST',
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      credentials: 'include'
+    });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({
+        success: false,
+        error: { code: 'API_ERROR', message: `HTTP ${res.status}: ${res.statusText}` }
+      }));
+      throw new ApiError(
+        json.error?.message || `HTTP ${res.status}: ${res.statusText}`,
+        json.error?.code || 'API_ERROR',
+        res.status,
+        json.error?.details
+      );
+    }
+
+    const filename = res.headers.get('X-Backup-Filename') || undefined;
+    const blob = await res.blob();
+    return { blob, filename };
+  }
 }
 
 export const api = new ShowroomApiClient();

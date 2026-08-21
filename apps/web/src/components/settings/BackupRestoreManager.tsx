@@ -99,21 +99,9 @@ export const BackupRestoreManager: React.FC<BackupRestoreManagerProps> = ({ shop
     }
 
     try {
-      // Call Backend Export Endpoint
-      const response = await fetch('/api/v1/backup/export', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ backupType: 'FULL' })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate encrypted backup file.');
-      }
-
-      const filename = response.headers.get('X-Backup-Filename') || `JewelleryShop_Backup_${new Date().toISOString().slice(0, 10)}.shopbackup`;
-      const blob = await response.blob();
+      // Call Backend Export Endpoint via centralized API client with credentials and base URL
+      const { blob, filename: serverFilename } = await api.postBlob('/backup/export', { backupType: 'FULL' });
+      const filename = serverFilename || `JewelleryShop_Backup_${new Date().toISOString().slice(0, 10)}.shopbackup`;
       const url = window.URL.createObjectURL(blob);
 
       setDownloadBlobUrl(url);

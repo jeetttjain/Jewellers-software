@@ -8,11 +8,12 @@ import { env } from '../config/env.js';
 
 export function getSessionCookieOptions(request?: FastifyRequest) {
   const isHttps = request ? (request.protocol === 'https' || request.headers['x-forwarded-proto'] === 'https') : false;
+  const isSecure = env.isProd || isHttps;
   return {
     path: '/',
     httpOnly: true,
-    secure: env.isProd ? true : isHttps,
-    sameSite: 'lax' as const,
+    secure: isSecure,
+    sameSite: isSecure ? ('none' as const) : ('lax' as const),
     maxAge: 30 * 24 * 60 * 60 // 30 days
   };
 }
@@ -195,7 +196,7 @@ export const authRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
       await revokeSession(token);
     }
 
-    reply.clearCookie('pos_session', { path: '/' });
+    reply.clearCookie('pos_session', getSessionCookieOptions(request));
 
     const response: ApiResponse = {
       success: true,
