@@ -6,6 +6,7 @@ import {
   Receipt,
   Package,
   Users,
+  Truck,
   CreditCard,
   Scale,
   RotateCcw,
@@ -106,6 +107,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
               <div className="flex items-center gap-2.5">
                 <Users className="w-4 h-4 text-surface-700" />
                 <span>Customers & Dues</span>
+              </div>
+            </NavLink>
+            <NavLink to="/suppliers" onClick={onClose} className={navItemClass}>
+              <div className="flex items-center gap-2.5">
+                <Truck className="w-4 h-4 text-surface-700" />
+                <span>Suppliers & Karigars</span>
               </div>
             </NavLink>
             <NavLink to="/payments" onClick={onClose} className={navItemClass}>

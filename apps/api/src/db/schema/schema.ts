@@ -143,6 +143,8 @@ export const jewelleryItems = pgTable('jewellery_items', {
   shopId: uuid('shop_id').references(() => shops.id).notNull(),
   categoryId: uuid('category_id').references(() => categories.id),
   rateDefinitionId: uuid('rate_definition_id').references(() => rateDefinitions.id),
+  supplierId: uuid('supplier_id').references((): any => suppliers.id),
+  purchaseId: uuid('purchase_id').references((): any => purchases.id),
   itemCode: varchar('item_code', { length: 50 }).notNull().unique(),
   category: varchar('category', { length: 50 }).notNull(),
   designTitle: varchar('design_title', { length: 150 }).notNull(),
@@ -158,6 +160,8 @@ export const jewelleryItems = pgTable('jewellery_items', {
   makingChargeValue: numeric('making_charge_value', { precision: 12, scale: 2 }).default('0.00').notNull(),
   wastagePct: numeric('wastage_pct', { precision: 5, scale: 2 }).default('0.00').notNull(),
   stoneValue: numeric('stone_value', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  purchaseCostRate: numeric('purchase_cost_rate', { precision: 12, scale: 2 }),
+  costMetalValue: numeric('cost_metal_value', { precision: 14, scale: 2 }),
   status: itemStatusEnum('status').default('IN_STOCK').notNull(),
   notes: text('notes'),
   imageUrl: text('image_url'),
@@ -167,7 +171,9 @@ export const jewelleryItems = pgTable('jewellery_items', {
   codeIdx: index('idx_items_code').on(table.itemCode),
   statusIdx: index('idx_items_status').on(table.shopId, table.status),
   huidIdx: index('idx_items_huid').on(table.huid),
-  rateDefIdx: index('idx_items_rate_def').on(table.rateDefinitionId)
+  rateDefIdx: index('idx_items_rate_def').on(table.rateDefinitionId),
+  supplierIdx: index('idx_items_supplier').on(table.supplierId),
+  purchaseIdx: index('idx_items_purchase').on(table.purchaseId)
 }));
 
 // Export alias for backward-compatibility during refactor
@@ -471,7 +477,7 @@ export const deletedRecords = pgTable('deleted_records', {
   shopDeletedIdx: index('idx_deleted_shop_date').on(table.shopId, table.deletedAt)
 }));
 
-// 21. Item Images Table (Multiple product images with primary indicator and tenant isolation)
+// 21. Item Images Table
 export const itemImages = pgTable('item_images', {
   id: uuid('id').defaultRandom().primaryKey(),
   shopId: uuid('shop_id').references(() => shops.id).notNull(),
@@ -484,7 +490,180 @@ export const itemImages = pgTable('item_images', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 }, (table) => ({
-  shopItemIdx: index('idx_item_images_shop_item').on(table.shopId, table.itemId),
-  itemPrimaryIdx: index('idx_item_images_item_primary').on(table.itemId, table.isPrimary)
+  shopItemIdx: index('idx_item_images_shop_item').on(table.shopId, table.itemId)
 }));
+
+// 22. Suppliers Table (Vendor / Karigar Master)
+export const suppliers = pgTable('suppliers', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  shopId: uuid('shop_id').references(() => shops.id).notNull(),
+  name: varchar('name', { length: 150 }).notNull(),
+  supplierCode: varchar('supplier_code', { length: 50 }).notNull(),
+  mobile: varchar('mobile', { length: 20 }).notNull(),
+  email: varchar('email', { length: 150 }),
+  pan: varchar('pan', { length: 15 }),
+  gstin: varchar('gstin', { length: 15 }),
+  address: text('address'),
+  city: varchar('city', { length: 100 }),
+  state: varchar('state', { length: 100 }),
+  stateCode: varchar('state_code', { length: 10 }),
+  paymentTermsDays: integer('payment_terms_days').default(30).notNull(),
+  openingBalance: numeric('opening_balance', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  currentBalance: numeric('current_balance', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  shopCodeIdx: uniqueIndex('idx_suppliers_shop_code').on(table.shopId, table.supplierCode),
+  shopMobileIdx: index('idx_suppliers_shop_mobile').on(table.shopId, table.mobile),
+  panIdx: index('idx_suppliers_pan').on(table.pan),
+  gstinIdx: index('idx_suppliers_gstin').on(table.gstin)
+}));
+
+// 23. Purchases Table (Inward Stock Invoices)
+export const purchases = pgTable('purchases', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  shopId: uuid('shop_id').references(() => shops.id).notNull(),
+  supplierId: uuid('supplier_id').references(() => suppliers.id).notNull(),
+  supplierName: varchar('supplier_name', { length: 150 }).notNull(),
+  supplierGstin: varchar('supplier_gstin', { length: 15 }),
+  supplierStateCode: varchar('supplier_state_code', { length: 10 }),
+  purchaseNumber: varchar('purchase_number', { length: 50 }).notNull(),
+  supplierInvoiceNumber: varchar('supplier_invoice_number', { length: 100 }),
+  purchaseDate: timestamp('purchase_date', { withTimezone: true }).defaultNow().notNull(),
+  metalTotalWeight: numeric('metal_total_weight', { precision: 12, scale: 3 }).default('0.000').notNull(),
+  pureWeightTotal: numeric('pure_weight_total', { precision: 12, scale: 3 }).default('0.000').notNull(),
+  subtotalMetal: numeric('subtotal_metal', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  makingChargesTotal: numeric('making_charges_total', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  wastageValueTotal: numeric('wastage_value_total', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  stoneValueTotal: numeric('stone_value_total', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  otherCharges: numeric('other_charges', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  discountTotal: numeric('discount_total', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  taxableAmount: numeric('taxable_amount', { precision: 14, scale: 2 }).notNull(),
+  taxPercent: numeric('tax_percent', { precision: 5, scale: 2 }).default('3.00').notNull(),
+  cgstAmount: numeric('cgst_amount', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  sgstAmount: numeric('sgst_amount', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  igstAmount: numeric('igst_amount', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  totalTaxAmount: numeric('total_tax_amount', { precision: 14, scale: 2 }).notNull(),
+  roundOff: numeric('round_off', { precision: 6, scale: 2 }).default('0.00').notNull(),
+  grandTotal: numeric('grand_total', { precision: 14, scale: 2 }).notNull(),
+  amountPaid: numeric('amount_paid', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  balanceDue: numeric('balance_due', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  paymentStatus: paymentStatusEnum('payment_status').default('UNPAID').notNull(),
+  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdByName: varchar('created_by_name', { length: 100 }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  shopPurchaseNumberIdx: uniqueIndex('idx_purchases_shop_number').on(table.shopId, table.purchaseNumber),
+  supplierIdx: index('idx_purchases_supplier').on(table.supplierId),
+  shopDateIdx: index('idx_purchases_shop_date').on(table.shopId, table.purchaseDate)
+}));
+
+// 24. Purchase Items Table (Inward line items)
+export const purchaseItems = pgTable('purchase_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  purchaseId: uuid('purchase_id').references(() => purchases.id, { onDelete: 'cascade' }).notNull(),
+  itemId: uuid('item_id').references(() => jewelleryItems.id),
+  itemCode: varchar('item_code', { length: 50 }).notNull(),
+  category: varchar('category', { length: 50 }).notNull(),
+  designTitle: varchar('design_title', { length: 150 }).notNull(),
+  metal: varchar('metal', { length: 50 }).default('GOLD').notNull(),
+  purity: varchar('purity', { length: 50 }).notNull(),
+  fineness: integer('fineness'),
+  grossWeight: numeric('gross_weight', { precision: 12, scale: 3 }).notNull(),
+  stoneWeight: numeric('stone_weight', { precision: 12, scale: 3 }).default('0.000').notNull(),
+  netWeight: numeric('net_weight', { precision: 12, scale: 3 }).notNull(),
+  pureWeight: numeric('pure_weight', { precision: 12, scale: 3 }).default('0.000').notNull(),
+  purchaseRate: numeric('purchase_rate', { precision: 12, scale: 2 }).notNull(),
+  benchmarkRate: numeric('benchmark_rate', { precision: 12, scale: 2 }),
+  metalCost: numeric('metal_cost', { precision: 14, scale: 2 }).notNull(),
+  makingChargeType: makingChargeTypeEnum('making_charge_type').default('PER_GRAM').notNull(),
+  makingRate: numeric('making_rate', { precision: 12, scale: 2 }).default('0.00').notNull(),
+  makingCost: numeric('making_cost', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  wastagePct: numeric('wastage_pct', { precision: 5, scale: 2 }).default('0.00').notNull(),
+  wastageValue: numeric('wastage_value', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  stoneValue: numeric('stone_value', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  taxableAmount: numeric('taxable_amount', { precision: 14, scale: 2 }).notNull(),
+  taxAmount: numeric('tax_amount', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  finalAmount: numeric('final_amount', { precision: 14, scale: 2 }).notNull(),
+  huid: varchar('huid', { length: 10 }),
+  autoCreateStock: boolean('auto_create_stock').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  purchaseIdx: index('idx_purchase_items_purchase').on(table.purchaseId),
+  itemIdx: index('idx_purchase_items_item').on(table.itemId),
+  itemCodeIdx: index('idx_purchase_items_code').on(table.itemCode)
+}));
+
+// 25. Supplier Ledger Entries Table (Accounts Payable Double Entry)
+export const supplierLedgerEntries = pgTable('supplier_ledger_entries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  shopId: uuid('shop_id').references(() => shops.id).notNull(),
+  supplierId: uuid('supplier_id').references(() => suppliers.id, { onDelete: 'cascade' }).notNull(),
+  date: timestamp('date', { withTimezone: true }).defaultNow().notNull(),
+  type: varchar('type', { length: 50 }).notNull(), // 'PURCHASE_BILL', 'PAYMENT_OUT', 'PURCHASE_RETURN', 'OPENING_BALANCE', 'ADJUSTMENT'
+  referenceNo: varchar('reference_no', { length: 100 }).notNull(),
+  description: text('description').notNull(),
+  debit: numeric('debit', { precision: 14, scale: 2 }).default('0.00').notNull(), // Payments / Returns (Decreases Payable)
+  credit: numeric('credit', { precision: 14, scale: 2 }).default('0.00').notNull(), // Purchases (Increases Payable)
+  runningBalance: numeric('running_balance', { precision: 14, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  supplierDateIdx: index('idx_supplier_ledger_date').on(table.supplierId, table.date),
+  shopDateIdx: index('idx_supplier_ledger_shop_date').on(table.shopId, table.date)
+}));
+
+// 26. Purchase Payments Table (Vendor Disbursements)
+export const purchasePayments = pgTable('purchase_payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  shopId: uuid('shop_id').references(() => shops.id).notNull(),
+  purchaseId: uuid('purchase_id').references(() => purchases.id),
+  supplierId: uuid('supplier_id').references(() => suppliers.id).notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  mode: paymentModeEnum('mode').notNull(),
+  referenceNo: varchar('reference_no', { length: 100 }),
+  notes: text('notes'),
+  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdByName: varchar('created_by_name', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  purchaseIdx: index('idx_purchase_payments_purchase').on(table.purchaseId),
+  supplierIdx: index('idx_purchase_payments_supplier').on(table.supplierId),
+  shopDateIdx: index('idx_purchase_payments_shop_date').on(table.shopId, table.createdAt)
+}));
+
+// 27. Purchase Returns Table (Debit Notes to Suppliers)
+export const purchaseReturns = pgTable('purchase_returns', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  shopId: uuid('shop_id').references(() => shops.id).notNull(),
+  returnNumber: varchar('return_number', { length: 50 }).notNull(),
+  originalPurchaseId: uuid('original_purchase_id').references(() => purchases.id),
+  supplierId: uuid('supplier_id').references(() => suppliers.id).notNull(),
+  supplierName: varchar('supplier_name', { length: 150 }).notNull(),
+  totalRefundAmount: numeric('total_refund_amount', { precision: 14, scale: 2 }).notNull(),
+  reason: text('reason').notNull(),
+  authorizedBy: uuid('authorized_by').references(() => users.id).notNull(),
+  authorizedByName: varchar('authorized_by_name', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+}, (table) => ({
+  shopReturnNumberIdx: uniqueIndex('idx_purchase_returns_number').on(table.shopId, table.returnNumber),
+  supplierIdx: index('idx_purchase_returns_supplier').on(table.supplierId)
+}));
+
+// 28. Purchase Return Items Table
+export const purchaseReturnItems = pgTable('purchase_return_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  purchaseReturnId: uuid('purchase_return_id').references(() => purchaseReturns.id, { onDelete: 'cascade' }).notNull(),
+  itemId: uuid('item_id').references(() => jewelleryItems.id),
+  itemCode: varchar('item_code', { length: 50 }).notNull(),
+  grossWeight: numeric('gross_weight', { precision: 12, scale: 3 }).notNull(),
+  netWeight: numeric('net_weight', { precision: 12, scale: 3 }).notNull(),
+  returnRate: numeric('return_rate', { precision: 12, scale: 2 }).notNull(),
+  returnAmount: numeric('return_amount', { precision: 14, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 

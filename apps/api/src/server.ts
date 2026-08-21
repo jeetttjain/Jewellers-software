@@ -19,6 +19,8 @@ import { labelsRoutes } from './routes/labels.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { backupRoutes } from './routes/backup.js';
 import { itemAssetRoutes } from './routes/item_assets.js';
+import { supplierRoutes } from './routes/suppliers.js';
+import { purchaseRoutes } from './routes/purchases.js';
 import { getDatabase, initDatabase } from './db/connection.js';
 import { ApiResponse } from '@jewellery-pos/shared';
 import { env } from './config/env.js';
@@ -98,6 +100,8 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(itemsRoutes, { prefix: '/api/v1' });
   await app.register(scanRoutes, { prefix: '/api/v1' });
   await app.register(customerRoutes, { prefix: '/api/v1' });
+  await app.register(supplierRoutes, { prefix: '/api/v1' });
+  await app.register(purchaseRoutes, { prefix: '/api/v1' });
   await app.register(billingRoutes, { prefix: '/api/v1' });
   await app.register(oldGoldRoutes, { prefix: '/api/v1' });
   await app.register(returnsRoutes, { prefix: '/api/v1' });

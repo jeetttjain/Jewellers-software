@@ -351,4 +351,111 @@ export const invoiceTemplateSchema = z.object({
   footerText: z.string().max(500).default('Thank you for shopping with us!')
 });
 
+// Supplier Master Validation Schemas
+export const createSupplierSchema = z.object({
+  name: z.string().trim().min(2, { message: 'Supplier name must be at least 2 characters' }).max(150),
+  supplierCode: z.string().trim().min(2, { message: 'Supplier code is required' }).max(50),
+  mobile: mobileNumberSchema,
+  email: z.string().trim().email({ message: 'Invalid email address' }).optional().or(z.literal('')),
+  pan: panSchema.optional().or(z.literal('')),
+  gstin: gstinSchema.optional().or(z.literal('')),
+  address: z.string().trim().max(500).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(100).optional(),
+  stateCode: z.string().trim().max(10).optional(),
+  paymentTermsDays: z.coerce.number().int().min(0).max(365).default(30),
+  openingBalance: currencyAmountSchema.default('0.00'),
+  notes: z.string().trim().max(1000).optional()
+});
+
+export const updateSupplierSchema = createSupplierSchema.partial().extend({
+  isActive: z.boolean().optional()
+});
+
+// Purchase Line Item Schema
+export const createPurchaseItemSchema = z.object({
+  itemId: uuidSchema.optional(),
+  itemCode: itemCodeSchema,
+  category: z.string().trim().min(2).max(50),
+  designTitle: z.string().trim().min(2).max(150),
+  metal: z.string().trim().min(2).max(50).default('GOLD'),
+  purity: z.string().trim().min(1).max(50),
+  fineness: z.coerce.number().int().min(1).max(1000).optional(),
+  grossWeight: decimalWeightSchema,
+  stoneWeight: optionalDecimalWeightSchema.default('0.000'),
+  netWeight: decimalWeightSchema,
+  pureWeight: optionalDecimalWeightSchema.default('0.000'),
+  purchaseRate: currencyAmountSchema,
+  benchmarkRate: currencyAmountSchema.optional(),
+  metalCost: currencyAmountSchema,
+  makingChargeType: z.nativeEnum(MakingChargeType).default(MakingChargeType.PER_GRAM),
+  makingRate: currencyAmountSchema.default('0.00'),
+  makingCost: currencyAmountSchema.default('0.00'),
+  wastagePct: z.string().regex(/^\d+(\.\d{1,2})?$/).default('0.00'),
+  wastageValue: currencyAmountSchema.default('0.00'),
+  stoneValue: currencyAmountSchema.default('0.00'),
+  taxableAmount: currencyAmountSchema,
+  taxAmount: currencyAmountSchema.default('0.00'),
+  finalAmount: currencyAmountSchema,
+  huid: huidSchema.optional().or(z.literal('')),
+  autoCreateStock: z.boolean().default(true)
+}).refine(
+  (data) => parseFloat(String(data.grossWeight)) >= parseFloat(String(data.stoneWeight)),
+  {
+    message: 'Gross weight must be greater than or equal to stone weight',
+    path: ['grossWeight']
+  }
+);
+
+// Purchase Payment Tender Schema
+export const createPurchasePaymentSchema = z.object({
+  amount: currencyAmountSchema,
+  mode: z.nativeEnum(PaymentMode),
+  referenceNo: z.string().trim().max(100).optional(),
+  notes: z.string().trim().max(500).optional()
+});
+
+// Purchase Creation Schema
+export const createPurchaseSchema = z.object({
+  supplierId: uuidSchema,
+  supplierInvoiceNumber: z.string().trim().max(100).optional(),
+  purchaseDate: z.string().datetime().optional(),
+  otherCharges: currencyAmountSchema.default('0.00'),
+  discountTotal: currencyAmountSchema.default('0.00'),
+  taxPercent: z.string().regex(/^\d+(\.\d{1,2})?$/).default('3.00'),
+  notes: z.string().trim().max(1000).optional(),
+  items: z.array(createPurchaseItemSchema).min(1, { message: 'At least one purchase item is required' }),
+  payments: z.array(createPurchasePaymentSchema).default([]),
+  idempotencyKey: z.string().trim().max(255).optional()
+});
+
+// Record Standalone Supplier Payment Schema
+export const recordSupplierPaymentSchema = z.object({
+  purchaseId: uuidSchema.optional(),
+  amount: currencyAmountSchema,
+  mode: z.nativeEnum(PaymentMode),
+  referenceNo: z.string().trim().max(100).optional(),
+  notes: z.string().trim().max(500).optional(),
+  idempotencyKey: z.string().trim().max(255).optional()
+});
+
+// Purchase Return Schema
+export const purchaseReturnSchema = z.object({
+  originalPurchaseId: uuidSchema.optional(),
+  supplierId: uuidSchema,
+  reason: z.string().trim().min(3, { message: 'Return reason is required' }).max(500),
+  supervisorPin: z.string().regex(/^\d{4,6}$/, { message: 'Supervisor PIN is required' }),
+  items: z.array(
+    z.object({
+      itemId: uuidSchema.optional(),
+      itemCode: itemCodeSchema,
+      grossWeight: decimalWeightSchema,
+      netWeight: decimalWeightSchema,
+      returnRate: currencyAmountSchema,
+      returnAmount: currencyAmountSchema
+    })
+  ).min(1, { message: 'At least one return item is required' })
+});
+
+
 

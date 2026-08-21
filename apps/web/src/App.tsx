@@ -21,6 +21,8 @@ import { LabelPrintQueuePage } from './pages/LabelPrintQueuePage.js';
 import { RatesManagerPage } from './pages/RatesManagerPage.js';
 import { CustomersDirectoryPage } from './pages/CustomersDirectoryPage.js';
 import { CustomerDetailPage } from './pages/CustomerDetailPage.js';
+import { SuppliersDirectoryPage } from './pages/SuppliersDirectoryPage.js';
+import { SupplierDetailPage } from './pages/SupplierDetailPage.js';
 import { PaymentsRegisterPage } from './pages/PaymentsRegisterPage.js';
 import { OldGoldAssayPage } from './pages/OldGoldAssayPage.js';
 import { ReturnsTerminalPage } from './pages/ReturnsTerminalPage.js';
@@ -66,6 +68,10 @@ export function App() {
                 {/* Customer Directory & Ledgers */}
                 <Route path="/customers" element={<CustomersDirectoryPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
+
+                {/* Supplier & Karigar Master */}
+                <Route path="/suppliers" element={<SuppliersDirectoryPage />} />
+                <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
 
                 {/* Payments Register */}
                 <Route path="/payments" element={<PaymentsRegisterPage />} />

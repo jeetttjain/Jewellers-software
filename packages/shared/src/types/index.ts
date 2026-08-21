@@ -127,6 +127,8 @@ export interface JewelleryItemSummary {
   id: string;
   shopId?: string;
   rateDefinitionId?: string | null;
+  supplierId?: string | null;
+  purchaseId?: string | null;
   itemCode: string;
   category: string;
   designTitle: string;
@@ -142,6 +144,8 @@ export interface JewelleryItemSummary {
   makingChargeValue: string;
   wastagePct: string;
   stoneValue: string;
+  purchaseCostRate?: string | null;
+  costMetalValue?: string | null;
   status: ItemStatus;
   imageUrl?: string | null;
   images?: ItemImage[];
@@ -518,3 +522,150 @@ export interface RestoreInspectionResponse {
   tenantMatch: boolean;
   warning?: string;
 }
+
+export interface Supplier {
+  id: string;
+  shopId: string;
+  name: string;
+  supplierCode: string;
+  mobile: string;
+  email?: string | null;
+  pan?: string | null;
+  gstin?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  stateCode?: string | null;
+  paymentTermsDays: number;
+  openingBalance: string;
+  currentBalance: string;
+  isActive: boolean;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseItem {
+  id: string;
+  purchaseId: string;
+  itemId?: string | null;
+  itemCode: string;
+  category: string;
+  designTitle: string;
+  metal: Metal | string;
+  purity: PurityKarat | string;
+  fineness?: number | null;
+  grossWeight: string;
+  stoneWeight: string;
+  netWeight: string;
+  pureWeight: string;
+  purchaseRate: string;
+  benchmarkRate?: string | null;
+  metalCost: string;
+  makingChargeType: MakingChargeType;
+  makingRate: string;
+  makingCost: string;
+  wastagePct: string;
+  wastageValue: string;
+  stoneValue: string;
+  taxableAmount: string;
+  taxAmount: string;
+  finalAmount: string;
+  huid?: string | null;
+  autoCreateStock: boolean;
+  createdAt: string;
+}
+
+export interface Purchase {
+  id: string;
+  shopId: string;
+  supplierId: string;
+  supplierName: string;
+  supplierGstin?: string | null;
+  supplierStateCode?: string | null;
+  purchaseNumber: string;
+  supplierInvoiceNumber?: string | null;
+  purchaseDate: string;
+  metalTotalWeight: string;
+  pureWeightTotal: string;
+  subtotalMetal: string;
+  makingChargesTotal: string;
+  wastageValueTotal: string;
+  stoneValueTotal: string;
+  otherCharges: string;
+  discountTotal: string;
+  taxableAmount: string;
+  taxPercent: string;
+  cgstAmount: string;
+  sgstAmount: string;
+  igstAmount: string;
+  totalTaxAmount: string;
+  roundOff: string;
+  grandTotal: string;
+  amountPaid: string;
+  balanceDue: string;
+  paymentStatus: PaymentStatus;
+  createdBy: string;
+  createdByName?: string | null;
+  notes?: string | null;
+  items?: PurchaseItem[];
+  payments?: PurchasePayment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierLedgerEntry {
+  id: string;
+  shopId: string;
+  supplierId: string;
+  date: string;
+  type: string;
+  referenceNo: string;
+  description: string;
+  debit: string;
+  credit: string;
+  runningBalance: string;
+  createdAt: string;
+}
+
+export interface PurchasePayment {
+  id: string;
+  shopId: string;
+  purchaseId?: string | null;
+  supplierId: string;
+  amount: string;
+  mode: PaymentMode;
+  referenceNo?: string | null;
+  notes?: string | null;
+  createdBy: string;
+  createdByName?: string | null;
+  createdAt: string;
+}
+
+export interface PurchaseReturn {
+  id: string;
+  shopId: string;
+  returnNumber: string;
+  originalPurchaseId?: string | null;
+  supplierId: string;
+  supplierName: string;
+  totalRefundAmount: string;
+  reason: string;
+  authorizedBy: string;
+  authorizedByName?: string | null;
+  items?: PurchaseReturnItem[];
+  createdAt: string;
+}
+
+export interface PurchaseReturnItem {
+  id: string;
+  purchaseReturnId: string;
+  itemId?: string | null;
+  itemCode: string;
+  grossWeight: string;
+  netWeight: string;
+  returnRate: string;
+  returnAmount: string;
+  createdAt: string;
+}
+

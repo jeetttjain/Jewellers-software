@@ -67,6 +67,22 @@ body,
   }
 }
 
+@layer utilities {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-safe-bottom-padding {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 1024px) {
+    .mobile-safe-bottom-padding {
+      padding-bottom: 1.5rem;
+    }
+  }
+}
+
 @media print {
   body {
     background: white !important;

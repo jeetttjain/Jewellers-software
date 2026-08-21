@@ -66,6 +66,13 @@ export interface BackupDataPayload {
     pricingRules: any[];
     customers: any[];
     customerLedgerEntries: any[];
+    suppliers?: any[];
+    purchases?: any[];
+    purchaseItems?: any[];
+    supplierLedgerEntries?: any[];
+    purchasePayments?: any[];
+    purchaseReturns?: any[];
+    purchaseReturnItems?: any[];
     invoices: any[];
     invoiceItems: any[];
     payments: any[];
@@ -217,12 +224,31 @@ export class BackupService {
       returnItemsList = await db.select().from(schema.returnItems).where(inArray(schema.returnItems.returnId, returnIds));
     }
 
+    // Purchase & Supplier Module Collections
+    const suppliersList = await db.select().from(schema.suppliers).where(eq(schema.suppliers.shopId, shopId));
+    const purchasesList = await db.select().from(schema.purchases).where(eq(schema.purchases.shopId, shopId));
+    const purchaseIds = purchasesList.map((p: any) => p.id);
+    let purchaseItemsList: any[] = [];
+    if (purchaseIds.length > 0) {
+      purchaseItemsList = await db.select().from(schema.purchaseItems).where(inArray(schema.purchaseItems.purchaseId, purchaseIds));
+    }
+    const supplierLedgerEntriesList = await db.select().from(schema.supplierLedgerEntries).where(eq(schema.supplierLedgerEntries.shopId, shopId));
+    const purchasePaymentsList = await db.select().from(schema.purchasePayments).where(eq(schema.purchasePayments.shopId, shopId));
+    const purchaseReturnsList = await db.select().from(schema.purchaseReturns).where(eq(schema.purchaseReturns.shopId, shopId));
+    const purchaseReturnIds = purchaseReturnsList.map((pr: any) => pr.id);
+    let purchaseReturnItemsList: any[] = [];
+    if (purchaseReturnIds.length > 0) {
+      purchaseReturnItemsList = await db.select().from(schema.purchaseReturnItems).where(inArray(schema.purchaseReturnItems.purchaseReturnId, purchaseReturnIds));
+    }
+
     const labelJobsList = await db.select().from(schema.labelJobs).where(eq(schema.labelJobs.shopId, shopId));
     const auditLogsList = await db.select().from(schema.auditLogs).where(eq(schema.auditLogs.shopId, shopId));
     const labelTemplatesList = await db.select().from(schema.labelTemplates).where(eq(schema.labelTemplates.shopId, shopId));
     const idempotencyKeysList = await db.select().from(schema.idempotencyKeys).where(eq(schema.idempotencyKeys.shopId, shopId));
     const deletedRecordsList = await db.select().from(schema.deletedRecords).where(eq(schema.deletedRecords.shopId, shopId));
-    const itemImagesList = await db.select().from(schema.itemImages).where(eq(schema.itemImages.shopId, shopId));
+    const itemImagesList: any[] = (schema as any).itemImages
+      ? await db.select().from((schema as any).itemImages).where(eq((schema as any).itemImages.shopId, shopId))
+      : [];
 
     // 2. Read Shop Logo Asset File if present
     let logoBase64: string | null = null;
@@ -248,12 +274,11 @@ export class BackupService {
 
     // Read Product Image Asset Files
     const itemImagesAssets: Array<{ filename: string; base64: string }> = [];
-    const itemsUploadsDir = path.resolve(currentDir, '../../uploads/items');
-
-    for (const img of itemImagesList) {
-      if (img.imageUrl) {
+    if (itemImagesList.length > 0) {
+      const itemsUploadsDir = path.resolve(currentDir, '../../uploads/items');
+      for (const img of itemImagesList) {
         try {
-          const filename = path.basename(img.imageUrl);
+          const filename = path.basename(img.storagePath || img.imageUrl);
           const fullPath = path.join(itemsUploadsDir, filename);
           if (fs.existsSync(fullPath)) {
             const buf = fs.readFileSync(fullPath);
@@ -279,7 +304,7 @@ export class BackupService {
       filteredPayments = paymentsList.filter((pay: any) => new Date(pay.createdAt) > cutoff);
       changesCount = filteredInvoices.length + filteredItems.length + filteredCustomers.length + filteredPayments.length + deletedRecordsList.length;
     } else {
-      changesCount = invoicesList.length + itemsList.length + customersList.length;
+      changesCount = invoicesList.length + itemsList.length + customersList.length + purchasesList.length;
     }
 
     const backupId = `bck_${crypto.randomUUID()}`;
@@ -296,6 +321,13 @@ export class BackupService {
       pricingRules: pricingRulesList,
       customers: customersList,
       customerLedgerEntries: ledgerEntriesList,
+      suppliers: suppliersList,
+      purchases: purchasesList,
+      purchaseItems: purchaseItemsList,
+      supplierLedgerEntries: supplierLedgerEntriesList,
+      purchasePayments: purchasePaymentsList,
+      purchaseReturns: purchaseReturnsList,
+      purchaseReturnItems: purchaseReturnItemsList,
       invoices: invoicesList,
       invoiceItems: invoiceItemsList,
       payments: paymentsList,
@@ -329,7 +361,7 @@ export class BackupService {
       checksum,
       counts: {
         sales: invoicesList.length,
-        purchases: 0,
+        purchases: purchasesList.length,
         customers: customersList.length,
         inventory: itemsList.length,
         payments: paymentsList.length,
@@ -390,7 +422,7 @@ export class BackupService {
       date: timestampIso,
       formattedDate: formatDateDisplay(timestampIso),
       salesCount: invoicesList.length,
-      purchasesCount: 0,
+      purchasesCount: purchasesList.length,
       customersCount: customersList.length,
       inventoryCount: itemsList.length,
       paymentsCount: paymentsList.length,
@@ -624,9 +656,9 @@ export class BackupService {
       }
 
       // Upsert Item Images
-      if (Array.isArray(data.itemImages) && data.itemImages.length > 0) {
+      if ((schema as any).itemImages && Array.isArray(data.itemImages) && data.itemImages.length > 0) {
         for (const img of data.itemImages) {
-          await db.insert(schema.itemImages).values({
+          await db.insert((schema as any).itemImages).values({
             ...img,
             shopId,
             createdAt: img.createdAt ? new Date(img.createdAt) : new Date(),
@@ -669,6 +701,111 @@ export class BackupService {
               updatedAt: new Date()
             }
           });
+        }
+      }
+
+      // Upsert Suppliers
+      if (Array.isArray(data.suppliers) && data.suppliers.length > 0) {
+        for (const supp of data.suppliers) {
+          await db.insert(schema.suppliers).values({
+            ...supp,
+            shopId,
+            createdAt: supp.createdAt ? new Date(supp.createdAt) : new Date(),
+            updatedAt: supp.updatedAt ? new Date(supp.updatedAt) : new Date()
+          }).onConflictDoUpdate({
+            target: schema.suppliers.id,
+            set: {
+              name: supp.name,
+              supplierCode: supp.supplierCode,
+              mobile: supp.mobile,
+              email: supp.email,
+              pan: supp.pan,
+              gstin: supp.gstin,
+              address: supp.address,
+              city: supp.city,
+              state: supp.state,
+              stateCode: supp.stateCode,
+              paymentTermsDays: supp.paymentTermsDays,
+              currentBalance: supp.currentBalance,
+              isActive: supp.isActive,
+              notes: supp.notes,
+              updatedAt: new Date()
+            }
+          });
+        }
+      }
+
+      // Upsert Purchases & Purchase Items
+      if (Array.isArray(data.purchases) && data.purchases.length > 0) {
+        for (const pur of data.purchases) {
+          await db.insert(schema.purchases).values({
+            ...pur,
+            shopId,
+            purchaseDate: pur.purchaseDate ? new Date(pur.purchaseDate) : new Date(),
+            createdAt: pur.createdAt ? new Date(pur.createdAt) : new Date(),
+            updatedAt: pur.updatedAt ? new Date(pur.updatedAt) : new Date()
+          }).onConflictDoUpdate({
+            target: schema.purchases.id,
+            set: {
+              amountPaid: pur.amountPaid,
+              balanceDue: pur.balanceDue,
+              paymentStatus: pur.paymentStatus,
+              notes: pur.notes,
+              updatedAt: new Date()
+            }
+          });
+        }
+      }
+
+      if (Array.isArray(data.purchaseItems) && data.purchaseItems.length > 0) {
+        for (const pItem of data.purchaseItems) {
+          await db.insert(schema.purchaseItems).values({
+            ...pItem,
+            createdAt: pItem.createdAt ? new Date(pItem.createdAt) : new Date()
+          }).onConflictDoNothing();
+        }
+      }
+
+      // Upsert Supplier Ledger Entries
+      if (Array.isArray(data.supplierLedgerEntries) && data.supplierLedgerEntries.length > 0) {
+        for (const sLeg of data.supplierLedgerEntries) {
+          await db.insert(schema.supplierLedgerEntries).values({
+            ...sLeg,
+            shopId,
+            date: sLeg.date ? new Date(sLeg.date) : new Date(),
+            createdAt: sLeg.createdAt ? new Date(sLeg.createdAt) : new Date()
+          }).onConflictDoNothing();
+        }
+      }
+
+      // Upsert Purchase Payments
+      if (Array.isArray(data.purchasePayments) && data.purchasePayments.length > 0) {
+        for (const pPay of data.purchasePayments) {
+          await db.insert(schema.purchasePayments).values({
+            ...pPay,
+            shopId,
+            createdAt: pPay.createdAt ? new Date(pPay.createdAt) : new Date()
+          }).onConflictDoNothing();
+        }
+      }
+
+      // Upsert Purchase Returns & Return Items
+      if (Array.isArray(data.purchaseReturns) && data.purchaseReturns.length > 0) {
+        for (const pRet of data.purchaseReturns) {
+          await db.insert(schema.purchaseReturns).values({
+            ...pRet,
+            shopId,
+            createdAt: pRet.createdAt ? new Date(pRet.createdAt) : new Date()
+          }).onConflictDoNothing();
+        }
+      }
+
+      if (Array.isArray(data.purchaseReturnItems) && data.purchaseReturnItems.length > 0) {
+        for (const prItem of data.purchaseReturnItems) {
+          await db.insert(schema.purchaseReturnItems).values({
+            ...prItem,
+            createdAt: prItem.createdAt ? new Date(prItem.createdAt) : new Date()
+          }).onConflictDoNothing();
         }
       }
 

@@ -49,7 +49,7 @@ export const AppShell: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-surface-50 flex flex-col">
+    <div className="h-full min-h-[100dvh] max-h-[100dvh] w-full max-w-full overflow-hidden bg-surface-50 flex flex-col">
       {/* Top Header (Static, flex-shrink-0) */}
       <Header onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
 
@@ -58,8 +58,8 @@ export const AppShell: React.FC = () => {
         {/* Responsive Sidebar (Container 1: Independent Scroll) */}
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-        {/* Content Viewport (Container 2: Independent Scroll) */}
-        <main className="flex-1 h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 md:p-6 pb-20 lg:pb-6 focus:outline-none">
+        {/* Content Viewport (Container 2: Dedicated Full Vertical Scroll) */}
+        <main className="flex-1 h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain mobile-safe-bottom-padding p-4 md:p-6 lg:p-6 focus:outline-none">
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>

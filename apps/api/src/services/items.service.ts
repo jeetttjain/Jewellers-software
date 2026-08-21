@@ -13,6 +13,8 @@ export interface CreateItemInput {
   purity: string;
   fineness?: number | null;
   rateDefinitionId?: string | null;
+  supplierId?: string | null;
+  purchaseId?: string | null;
   grossWeight: string;
   stoneWeight?: string;
   huid?: string;
@@ -21,6 +23,8 @@ export interface CreateItemInput {
   makingChargeValue?: string;
   wastagePct?: string;
   stoneValue?: string;
+  purchaseCostRate?: string;
+  costMetalValue?: string;
   notes?: string;
 }
 
@@ -169,6 +173,8 @@ export async function createItem(shopId: string, input: CreateItemInput, _userId
     .values({
       shopId,
       rateDefinitionId: resolvedDefId,
+      supplierId: input.supplierId || null,
+      purchaseId: input.purchaseId || null,
       itemCode: input.itemCode.trim().toUpperCase(),
       category: input.category,
       designTitle: input.designTitle.trim(),
@@ -184,6 +190,8 @@ export async function createItem(shopId: string, input: CreateItemInput, _userId
       makingChargeValue: new Decimal(input.makingChargeValue || '0.00').toFixed(2),
       wastagePct: new Decimal(input.wastagePct || '0.00').toFixed(2),
       stoneValue: new Decimal(input.stoneValue || '0.00').toFixed(2),
+      purchaseCostRate: input.purchaseCostRate ? new Decimal(input.purchaseCostRate).toFixed(2) : null,
+      costMetalValue: input.costMetalValue ? new Decimal(input.costMetalValue).toFixed(2) : null,
       status: 'IN_STOCK',
       notes: input.notes || null
     })

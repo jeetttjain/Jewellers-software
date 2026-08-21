@@ -543,7 +543,166 @@ export async function initDatabase(_db?: any) {
       sort_order INTEGER DEFAULT 0 NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
       updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-    );`
+    );`,
+
+    // 22. Suppliers Table
+    `CREATE TABLE IF NOT EXISTS suppliers (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      shop_id UUID NOT NULL REFERENCES shops(id),
+      name VARCHAR(150) NOT NULL,
+      supplier_code VARCHAR(50) NOT NULL,
+      mobile VARCHAR(20) NOT NULL,
+      email VARCHAR(150),
+      pan VARCHAR(15),
+      gstin VARCHAR(15),
+      address TEXT,
+      city VARCHAR(100),
+      state VARCHAR(100),
+      state_code VARCHAR(10),
+      payment_terms_days INTEGER DEFAULT 30 NOT NULL,
+      opening_balance NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      current_balance NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      is_active BOOLEAN DEFAULT true NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      CONSTRAINT unq_suppliers_shop_code UNIQUE (shop_id, supplier_code)
+    );`,
+
+    // 23. Purchases Table
+    `CREATE TABLE IF NOT EXISTS purchases (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      shop_id UUID NOT NULL REFERENCES shops(id),
+      supplier_id UUID NOT NULL REFERENCES suppliers(id),
+      supplier_name VARCHAR(150) NOT NULL,
+      supplier_gstin VARCHAR(15),
+      supplier_state_code VARCHAR(10),
+      purchase_number VARCHAR(50) NOT NULL,
+      supplier_invoice_number VARCHAR(100),
+      purchase_date TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      metal_total_weight NUMERIC(12, 3) DEFAULT 0.000 NOT NULL,
+      pure_weight_total NUMERIC(12, 3) DEFAULT 0.000 NOT NULL,
+      subtotal_metal NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      making_charges_total NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      wastage_value_total NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      stone_value_total NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      other_charges NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      discount_total NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      taxable_amount NUMERIC(14, 2) NOT NULL,
+      tax_percent NUMERIC(5, 2) DEFAULT 3.00 NOT NULL,
+      cgst_amount NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      sgst_amount NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      igst_amount NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      total_tax_amount NUMERIC(14, 2) NOT NULL,
+      round_off NUMERIC(6, 2) DEFAULT 0.00 NOT NULL,
+      grand_total NUMERIC(14, 2) NOT NULL,
+      amount_paid NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      balance_due NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      payment_status payment_status DEFAULT 'UNPAID' NOT NULL,
+      created_by UUID NOT NULL REFERENCES users(id),
+      created_by_name VARCHAR(100),
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      CONSTRAINT unq_purchases_shop_number UNIQUE (shop_id, purchase_number)
+    );`,
+
+    // 24. Purchase Items Table
+    `CREATE TABLE IF NOT EXISTS purchase_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      purchase_id UUID NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+      item_id UUID REFERENCES jewellery_items(id),
+      item_code VARCHAR(50) NOT NULL,
+      category VARCHAR(50) NOT NULL,
+      design_title VARCHAR(150) NOT NULL,
+      metal VARCHAR(50) DEFAULT 'GOLD' NOT NULL,
+      purity VARCHAR(50) NOT NULL,
+      fineness INTEGER,
+      gross_weight NUMERIC(12, 3) NOT NULL,
+      stone_weight NUMERIC(12, 3) DEFAULT 0.000 NOT NULL,
+      net_weight NUMERIC(12, 3) NOT NULL,
+      pure_weight NUMERIC(12, 3) DEFAULT 0.000 NOT NULL,
+      purchase_rate NUMERIC(12, 2) NOT NULL,
+      benchmark_rate NUMERIC(12, 2),
+      metal_cost NUMERIC(14, 2) NOT NULL,
+      making_charge_type making_charge_type DEFAULT 'PER_GRAM' NOT NULL,
+      making_rate NUMERIC(12, 2) DEFAULT 0.00 NOT NULL,
+      making_cost NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      wastage_pct NUMERIC(5, 2) DEFAULT 0.00 NOT NULL,
+      wastage_value NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      stone_value NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      taxable_amount NUMERIC(14, 2) NOT NULL,
+      tax_amount NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      final_amount NUMERIC(14, 2) NOT NULL,
+      huid VARCHAR(10),
+      auto_create_stock BOOLEAN DEFAULT true NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    );`,
+
+    // 25. Supplier Ledger Entries Table
+    `CREATE TABLE IF NOT EXISTS supplier_ledger_entries (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      shop_id UUID NOT NULL REFERENCES shops(id),
+      supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+      date TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      type VARCHAR(50) NOT NULL,
+      reference_no VARCHAR(100) NOT NULL,
+      description TEXT NOT NULL,
+      debit NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      credit NUMERIC(14, 2) DEFAULT 0.00 NOT NULL,
+      running_balance NUMERIC(14, 2) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    );`,
+
+    // 26. Purchase Payments Table
+    `CREATE TABLE IF NOT EXISTS purchase_payments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      shop_id UUID NOT NULL REFERENCES shops(id),
+      purchase_id UUID REFERENCES purchases(id),
+      supplier_id UUID NOT NULL REFERENCES suppliers(id),
+      amount NUMERIC(14, 2) NOT NULL,
+      mode payment_mode NOT NULL,
+      reference_no VARCHAR(100),
+      notes TEXT,
+      created_by UUID NOT NULL REFERENCES users(id),
+      created_by_name VARCHAR(100),
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    );`,
+
+    // 27. Purchase Returns Table
+    `CREATE TABLE IF NOT EXISTS purchase_returns (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      shop_id UUID NOT NULL REFERENCES shops(id),
+      return_number VARCHAR(50) NOT NULL,
+      original_purchase_id UUID REFERENCES purchases(id),
+      supplier_id UUID NOT NULL REFERENCES suppliers(id),
+      supplier_name VARCHAR(150) NOT NULL,
+      total_refund_amount NUMERIC(14, 2) NOT NULL,
+      reason TEXT NOT NULL,
+      authorized_by UUID NOT NULL REFERENCES users(id),
+      authorized_by_name VARCHAR(100),
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+      CONSTRAINT unq_purchase_returns_number UNIQUE (shop_id, return_number)
+    );`,
+
+    // 28. Purchase Return Items Table
+    `CREATE TABLE IF NOT EXISTS purchase_return_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      purchase_return_id UUID NOT NULL REFERENCES purchase_returns(id) ON DELETE CASCADE,
+      item_id UUID REFERENCES jewellery_items(id),
+      item_code VARCHAR(50) NOT NULL,
+      gross_weight NUMERIC(12, 3) NOT NULL,
+      net_weight NUMERIC(12, 3) NOT NULL,
+      return_rate NUMERIC(12, 2) NOT NULL,
+      return_amount NUMERIC(14, 2) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+    );`,
+
+    // Add nullable provenance fields to jewellery_items
+    `ALTER TABLE jewellery_items ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES suppliers(id);`,
+    `ALTER TABLE jewellery_items ADD COLUMN IF NOT EXISTS purchase_id UUID REFERENCES purchases(id);`,
+    `ALTER TABLE jewellery_items ADD COLUMN IF NOT EXISTS purchase_cost_rate NUMERIC(12, 2);`,
+    `ALTER TABLE jewellery_items ADD COLUMN IF NOT EXISTS cost_metal_value NUMERIC(14, 2);`
   ];
 
   for (const statement of ddlStatements) {
