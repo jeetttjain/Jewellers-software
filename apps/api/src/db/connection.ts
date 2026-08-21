@@ -705,15 +705,24 @@ export async function initDatabase(_db?: any) {
     `ALTER TABLE jewellery_items ADD COLUMN IF NOT EXISTS cost_metal_value NUMERIC(14, 2);`
   ];
 
-  for (const statement of ddlStatements) {
-    try {
-      if (clientInstance?.query) {
-        await clientInstance.query(statement);
-      } else if (clientInstance) {
-        await clientInstance.unsafe(statement);
+  try {
+    const combinedScript = ddlStatements.join('\n');
+    if (clientInstance?.query) {
+      await clientInstance.query(combinedScript);
+    } else if (clientInstance?.unsafe) {
+      await clientInstance.unsafe(combinedScript);
+    }
+  } catch {
+    for (const statement of ddlStatements) {
+      try {
+        if (clientInstance?.query) {
+          await clientInstance.query(statement);
+        } else if (clientInstance?.unsafe) {
+          await clientInstance.unsafe(statement);
+        }
+      } catch {
+        // Ignore if already exists
       }
-    } catch {
-      // Ignore if already exists
     }
   }
 }

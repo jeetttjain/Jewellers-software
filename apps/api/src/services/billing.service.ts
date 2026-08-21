@@ -2,7 +2,7 @@ import { getDatabase } from '../db/connection.js';
 import * as schema from '../db/schema/index.js';
 import { validateRule114B, validateSection269ST, computeTaxBreakdown } from './compliance.service.js';
 import { Decimal } from 'decimal.js';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import crypto from 'crypto';
 
 export interface CreateInvoiceItemInput {
@@ -501,10 +501,26 @@ export async function listInvoices(shopId: string) {
     .where(eq(schema.invoices.shopId, shopId))
     .orderBy(desc(schema.invoices.createdAt));
 
-  const enriched = [];
-  for (const inv of list) {
-    const items = await db.select().from(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, inv.id));
-    enriched.push({ ...inv, items });
+  if (list.length === 0) return [];
+
+  const invoiceIds = list.map((inv: any) => inv.id);
+  const allItems = await db
+    .select()
+    .from(schema.invoiceItems)
+    .where(inArray(schema.invoiceItems.invoiceId, invoiceIds));
+
+  const itemsByInvoiceId = new Map<string, any[]>();
+  for (const item of allItems) {
+    let arr = itemsByInvoiceId.get(item.invoiceId);
+    if (!arr) {
+      arr = [];
+      itemsByInvoiceId.set(item.invoiceId, arr);
+    }
+    arr.push(item);
   }
-  return enriched;
+
+  return list.map((inv: any) => ({
+    ...inv,
+    items: itemsByInvoiceId.get(inv.id) || []
+  }));
 }
