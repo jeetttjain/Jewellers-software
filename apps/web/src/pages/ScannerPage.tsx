@@ -12,9 +12,11 @@ export const ScannerPage: React.FC = () => {
   const [cameraState, setCameraState] = useState<CameraState>('IDLE');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [isDetectorSupported, setIsDetectorSupported] = useState(true);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
 
@@ -27,22 +29,34 @@ export const ScannerPage: React.FC = () => {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
     }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+    if (activeStream) {
+      activeStream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {
+          // Ignore track stop errors
+        }
+      });
+      setActiveStream(null);
     }
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setVideoDimensions(null);
     setCameraState('IDLE');
-  }, []);
+  }, [activeStream]);
 
   // Cleanup camera stream on unmount
   useEffect(() => {
     return () => {
-      stopCamera();
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+      if (activeStream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+      }
     };
-  }, [stopCamera]);
+  }, [activeStream]);
 
   const handleLookup = useCallback(
     async (lookupCode: string) => {
@@ -69,36 +83,50 @@ export const ScannerPage: React.FC = () => {
       try {
         const formats = ['qr_code', 'code_128', 'code_39', 'ean_13', 'upc_a', 'data_matrix'];
         detectorRef.current = new (window as any).BarcodeDetector({ formats });
+        setIsDetectorSupported(true);
       } catch {
-        detectorRef.current = new (window as any).BarcodeDetector();
+        try {
+          detectorRef.current = new (window as any).BarcodeDetector();
+          setIsDetectorSupported(true);
+        } catch {
+          setIsDetectorSupported(false);
+        }
       }
+    } else {
+      setIsDetectorSupported(false);
     }
   }, []);
 
   // Frame scanner detection loop
   const startScanLoop = useCallback(() => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
     const scanFrame = async () => {
-      if (!videoRef.current || videoRef.current.readyState < 2) {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || video.videoWidth === 0) {
         animFrameRef.current = requestAnimationFrame(scanFrame);
         return;
       }
 
       if (detectorRef.current) {
         try {
-          const barcodes = await detectorRef.current.detect(videoRef.current);
+          const barcodes = await detectorRef.current.detect(video);
           if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
             const detectedValue = barcodes[0].rawValue.trim();
             if (detectedValue) {
               setScannedCode(detectedValue);
-              if (navigator.vibrate) {
+              if (typeof navigator !== 'undefined' && navigator.vibrate) {
                 navigator.vibrate(100);
               }
               handleLookup(detectedValue);
-              return; // Stop loop upon successful detection
+              return; // Terminate loop upon valid detection
             }
           }
         } catch {
-          // Ignore intermittent frame decode errors
+          // Ignore frame decode errors
         }
       }
 
@@ -108,12 +136,62 @@ export const ScannerPage: React.FC = () => {
     animFrameRef.current = requestAnimationFrame(scanFrame);
   }, [handleLookup]);
 
-  // Explicit user-triggered camera start
+  // Deterministic video stream attachment & playback effect once video element is visible in DOM
+  useEffect(() => {
+    if (!activeStream || cameraState !== 'ACTIVE') return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = activeStream;
+    video.playsInline = true;
+    video.muted = true;
+    video.autoplay = true;
+    video.setAttribute('playsinline', 'true');
+    video.setAttribute('autoplay', 'true');
+    video.setAttribute('muted', 'true');
+
+    let isSubscribed = true;
+
+    const initPlayback = async () => {
+      try {
+        await video.play();
+      } catch {
+        // Autoplay policy exception handled gracefully
+      }
+
+      const updateDimensionsAndScan = () => {
+        if (!isSubscribed) return;
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          setVideoDimensions({ width: video.videoWidth, height: video.videoHeight });
+          startScanLoop();
+        }
+      };
+
+      if (video.readyState >= 2 && video.videoWidth > 0) {
+        updateDimensionsAndScan();
+      } else {
+        video.addEventListener('loadedmetadata', updateDimensionsAndScan, { once: true });
+        video.addEventListener('canplay', updateDimensionsAndScan, { once: true });
+        video.addEventListener('playing', updateDimensionsAndScan, { once: true });
+        video.addEventListener('timeupdate', updateDimensionsAndScan, { once: true });
+      }
+    };
+
+    initPlayback();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [activeStream, cameraState, startScanLoop]);
+
+  // Explicit user-triggered camera start with progressive fallback constraints
   const startCamera = async () => {
     stopCamera();
     setCameraState('REQUESTING');
     setCameraError(null);
     setScannedCode(null);
+    setVideoDimensions(null);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraState('UNAVAILABLE');
@@ -121,38 +199,53 @@ export const ScannerPage: React.FC = () => {
       return;
     }
 
+    let stream: MediaStream | null = null;
+
+    // Constraint Strategy 1: Ideal Rear Camera at 720p
     try {
-      const constraints: MediaStreamConstraints = {
+      stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1280 },
           height: { ideal: 720 }
         },
         audio: false
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.setAttribute('autoplay', 'true');
-        videoRef.current.setAttribute('muted', 'true');
-        await videoRef.current.play().catch(() => {});
-      }
-
-      setCameraState('ACTIVE');
-      startScanLoop();
-    } catch (err: any) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraState('DENIED');
-        setCameraError('Camera access denied. Please grant camera permission in your browser.');
-      } else {
-        setCameraState('UNAVAILABLE');
-        setCameraError(err.message || 'Unable to access rear camera device.');
+      });
+    } catch {
+      // Constraint Strategy 2: Exact/Simple Rear Camera
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false
+        });
+      } catch {
+        // Constraint Strategy 3: Standard Default Video Device
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        } catch (err: any) {
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            setCameraState('DENIED');
+            setCameraError('Camera access denied. Please grant camera permission in your browser.');
+          } else {
+            setCameraState('UNAVAILABLE');
+            setCameraError(err.message || 'Unable to access camera device.');
+          }
+          return;
+        }
       }
     }
+
+    if (!stream) {
+      setCameraState('UNAVAILABLE');
+      setCameraError('No video stream returned from camera.');
+      return;
+    }
+
+    setActiveStream(stream);
+    setCameraState('ACTIVE');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -184,12 +277,12 @@ export const ScannerPage: React.FC = () => {
           </h2>
           {cameraState === 'ACTIVE' && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 animate-pulse">
-              ● Camera Active
+              ● Camera Active {videoDimensions ? `(${videoDimensions.width}×${videoDimensions.height})` : ''}
             </span>
           )}
         </div>
 
-        {/* Camera Viewport / States */}
+        {/* Camera Idle State */}
         {cameraState === 'IDLE' && (
           <div className="border-2 border-dashed border-slate-200 bg-slate-50 rounded-xl p-6 text-center space-y-3">
             <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
@@ -204,7 +297,7 @@ export const ScannerPage: React.FC = () => {
             <button
               type="button"
               onClick={startCamera}
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-2 mx-auto shadow-sm active:scale-95 transition-all"
+              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs flex items-center gap-2 mx-auto shadow-sm active:scale-95 transition-all cursor-pointer"
             >
               <Video className="w-4 h-4 text-amber-400" />
               <span>Start Camera</span>
@@ -212,6 +305,7 @@ export const ScannerPage: React.FC = () => {
           </div>
         )}
 
+        {/* Camera Requesting Permission State */}
         {cameraState === 'REQUESTING' && (
           <div className="border border-slate-200 bg-slate-50 rounded-xl p-8 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
@@ -220,20 +314,27 @@ export const ScannerPage: React.FC = () => {
           </div>
         )}
 
+        {/* Camera Video Viewport (Rendered when camera is ACTIVE) */}
         {cameraState === 'ACTIVE' && (
           <div className="space-y-3">
-            <div className="relative rounded-xl overflow-hidden bg-black aspect-video sm:aspect-4/3 max-h-72 flex items-center justify-center">
+            <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-video sm:aspect-4/3 max-h-72 flex items-center justify-center border border-slate-800">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover block"
               />
 
               {/* Viewfinder Overlay & Laser Line */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4">
-                <div className="w-48 h-32 sm:w-56 sm:h-36 border-2 border-amber-400/80 rounded-xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4 bg-black/20">
+                <div className="w-48 h-32 sm:w-56 sm:h-36 border-2 border-amber-400 rounded-xl relative shadow-lg">
+                  {/* Corner accents */}
+                  <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-amber-300" />
+                  <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-amber-300" />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-amber-300" />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-amber-300" />
+                  
                   {/* Laser line animation */}
                   <div className="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_#ef4444] animate-bounce top-1/2" />
                   <div className="absolute top-1 left-2 text-[9px] font-mono text-amber-300 font-bold bg-black/60 px-1 rounded">
@@ -250,6 +351,12 @@ export const ScannerPage: React.FC = () => {
               )}
             </div>
 
+            {!isDetectorSupported && (
+              <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 text-center">
+                Live camera active. If automatic barcode detection is not supported on this browser, enter code manually below.
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-slate-500">
                 Align code within red laser box for sub-300ms quote
@@ -257,7 +364,7 @@ export const ScannerPage: React.FC = () => {
               <button
                 type="button"
                 onClick={stopCamera}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs flex items-center gap-1 transition-colors"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <CameraOff className="w-3.5 h-3.5" />
                 <span>Stop Camera</span>
@@ -266,6 +373,7 @@ export const ScannerPage: React.FC = () => {
           </div>
         )}
 
+        {/* Error / Denied / Unavailable States */}
         {(cameraState === 'DENIED' || cameraState === 'UNAVAILABLE') && (
           <div className="border border-red-200 bg-red-50/70 rounded-xl p-4 space-y-3">
             <div className="flex items-start gap-2.5">
@@ -283,7 +391,7 @@ export const ScannerPage: React.FC = () => {
               <button
                 type="button"
                 onClick={startCamera}
-                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 transition-colors"
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Try Camera Again</span>
@@ -293,7 +401,7 @@ export const ScannerPage: React.FC = () => {
         )}
       </div>
 
-      {/* Manual Code Entry & Handheld 2D Scanner Section */}
+      {/* Manual Code Entry & Handheld 2D Scanner Section (Preserved for Desktop & Fallback) */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-md space-y-5">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -347,4 +455,5 @@ export const ScannerPage: React.FC = () => {
     </div>
   );
 };
+
 
