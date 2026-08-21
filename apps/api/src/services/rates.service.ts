@@ -17,6 +17,7 @@ export interface UpdateRateDefinitionInput {
   currentRate?: string;
   isActive?: boolean;
   sortOrder?: number;
+  changeReason?: string;
 }
 
 export interface CreateRatesInput {
@@ -275,7 +276,8 @@ export async function updateRateDefinition(
       newRate: updated.currentRate,
       action: 'RATE_UPDATED',
       changedBy: userId,
-      changedByName: userName
+      changedByName: userName,
+      changeReason: input.changeReason || null
     });
   }
 
@@ -291,7 +293,8 @@ export async function updateRateDefinition(
       newRate: updated.currentRate,
       action: updated.isActive ? 'RATE_ACTIVATED' : 'RATE_DEACTIVATED',
       changedBy: userId,
-      changedByName: userName
+      changedByName: userName,
+      changeReason: input.changeReason || null
     });
   }
 
@@ -308,7 +311,8 @@ export async function updateRateDefinition(
       previousRate: existing.currentRate,
       newRate: updated.currentRate,
       previousStatus: existing.isActive,
-      newStatus: updated.isActive
+      newStatus: updated.isActive,
+      changeReason: input.changeReason || null
     }
   });
 
@@ -336,7 +340,8 @@ export async function publishDailyRates(
   shopId: string,
   ratesList: { id: string; rate: string }[],
   userId: string,
-  userName: string
+  userName: string,
+  changeReason?: string
 ) {
   const { db } = await getDatabase();
   const updatedDefinitions: RateDefinition[] = [];
@@ -345,7 +350,7 @@ export async function publishDailyRates(
     const updated = await updateRateDefinition(
       shopId,
       item.id,
-      { currentRate: item.rate },
+      { currentRate: item.rate, changeReason },
       userId,
       userName
     );
@@ -461,16 +466,60 @@ export async function resolveCurrentRate(
   };
 }
 
+export interface RateHistoryFilters {
+  metal?: string;
+  purity?: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface HistoricalRateCriteria {
+  metal: string;
+  purity?: string;
+  fineness?: number | null;
+  asOfDate: string | Date;
+}
+
 /**
- * Retrieves the full immutable Rate History log.
+ * Retrieves the full immutable Rate History log with optional filtering.
  */
-export async function getRatesHistory(shopId: string): Promise<RateHistoryEntry[]> {
+export async function getRatesHistory(
+  shopId: string,
+  filters?: RateHistoryFilters
+): Promise<RateHistoryEntry[]> {
   const { db } = await getDatabase();
+
+  const conditions = [eq(schema.rateHistory.shopId, shopId)];
+
+  if (filters?.metal && filters.metal !== 'ALL') {
+    conditions.push(sql`UPPER(${schema.rateHistory.metal}) = ${filters.metal.trim().toUpperCase()}`);
+  }
+
+  if (filters?.purity && filters.purity !== 'ALL') {
+    conditions.push(sql`UPPER(${schema.rateHistory.purity}) = ${filters.purity.trim().toUpperCase()}`);
+  }
+
+  if (filters?.fromDate) {
+    const fromDateObj = new Date(filters.fromDate);
+    if (!isNaN(fromDateObj.getTime())) {
+      conditions.push(sql`${schema.rateHistory.effectiveFrom} >= ${fromDateObj}`);
+    }
+  }
+
+  if (filters?.toDate) {
+    const toDateObj = new Date(filters.toDate);
+    if (!isNaN(toDateObj.getTime())) {
+      // Set to end of day if only date is passed
+      toDateObj.setHours(23, 59, 59, 999);
+      conditions.push(sql`${schema.rateHistory.effectiveFrom} <= ${toDateObj}`);
+    }
+  }
+
   const rows = await db
     .select()
     .from(schema.rateHistory)
-    .where(eq(schema.rateHistory.shopId, shopId))
-    .orderBy(desc(schema.rateHistory.createdAt));
+    .where(and(...conditions))
+    .orderBy(desc(schema.rateHistory.effectiveFrom), desc(schema.rateHistory.createdAt));
 
   return rows.map((r: any) => ({
     id: r.id,
@@ -484,9 +533,94 @@ export async function getRatesHistory(shopId: string): Promise<RateHistoryEntry[
     action: r.action,
     changedBy: r.changedBy,
     changedByName: r.changedByName,
+    changeReason: r.changeReason || null,
     effectiveFrom: r.effectiveFrom?.toISOString ? r.effectiveFrom.toISOString() : String(r.effectiveFrom),
     createdAt: r.createdAt?.toISOString ? r.createdAt.toISOString() : String(r.createdAt)
   }));
+}
+
+/**
+ * Historical Rate Lookup Engine (As-of Date & Time Query)
+ * Returns the exact rate that was active in the showroom at a specific moment in the past.
+ * If multiple changes occurred on that day, timestamp ordering determines the exact active rate.
+ */
+export async function getHistoricalRate(
+  shopId: string,
+  criteria: HistoricalRateCriteria
+): Promise<{
+  metal: string;
+  purity: string;
+  fineness?: number | null;
+  rate: string;
+  effectiveFrom: string;
+  asOfDate: string;
+  changedByName?: string | null;
+  action?: string;
+  changeReason?: string | null;
+  isExactHistoricalMatch: boolean;
+}> {
+  const { db } = await getDatabase();
+  const targetDate = new Date(criteria.asOfDate);
+  if (isNaN(targetDate.getTime())) {
+    throw new Error(`Invalid asOfDate timestamp: '${criteria.asOfDate}'`);
+  }
+
+  const cleanMetal = criteria.metal.trim().toUpperCase();
+  const cleanPurity = criteria.purity ? criteria.purity.trim().toUpperCase() : '';
+  const fineness = criteria.fineness ? Math.round(Number(criteria.fineness)) : null;
+
+  // 1. Find the latest rateHistory record created or effective before/at targetDate
+  const historyConditions = [
+    eq(schema.rateHistory.shopId, shopId),
+    sql`UPPER(${schema.rateHistory.metal}) = ${cleanMetal}`,
+    sql`${schema.rateHistory.effectiveFrom} <= ${targetDate}`
+  ];
+
+  if (cleanPurity) {
+    historyConditions.push(sql`(UPPER(${schema.rateHistory.purity}) = ${cleanPurity} OR ${schema.rateHistory.fineness} = ${fineness})`);
+  } else if (fineness) {
+    historyConditions.push(eq(schema.rateHistory.fineness, fineness));
+  }
+
+  const historyRows = await db
+    .select()
+    .from(schema.rateHistory)
+    .where(and(...historyConditions))
+    .orderBy(desc(schema.rateHistory.effectiveFrom), desc(schema.rateHistory.createdAt))
+    .limit(1);
+
+  if (historyRows.length > 0) {
+    const rec = historyRows[0];
+    return {
+      metal: rec.metal,
+      purity: rec.purity,
+      fineness: rec.fineness,
+      rate: rec.newRate,
+      effectiveFrom: rec.effectiveFrom?.toISOString ? rec.effectiveFrom.toISOString() : String(rec.effectiveFrom),
+      asOfDate: targetDate.toISOString(),
+      changedByName: rec.changedByName,
+      action: rec.action,
+      changeReason: rec.changeReason,
+      isExactHistoricalMatch: true
+    };
+  }
+
+  // 2. Fallback: If query date is before any logged history, lookup earliest rate or current active definition
+  const current = await resolveCurrentRate(shopId, {
+    metal: cleanMetal,
+    purity: cleanPurity,
+    fineness
+  });
+
+  return {
+    metal: current.metal,
+    purity: current.purity,
+    fineness: current.fineness,
+    rate: current.rate,
+    effectiveFrom: targetDate.toISOString(),
+    asOfDate: targetDate.toISOString(),
+    isExactHistoricalMatch: false
+  };
 }
 
 /**

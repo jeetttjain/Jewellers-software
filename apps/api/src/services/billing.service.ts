@@ -430,10 +430,7 @@ export async function createInvoiceTransaction(
       .from(schema.invoiceItems)
       .where(eq(schema.invoiceItems.invoiceId, insertedInvoice.id));
 
-    const invoiceResult = {
-      ...insertedInvoice,
-      items: itemsList
-    };
+    const invoiceResult = normalizeInvoice(insertedInvoice, itemsList);
 
     // L. Save in Idempotency Keys table if provided
     if (payload.idempotencyKey) {
@@ -454,6 +451,51 @@ export async function createInvoiceTransaction(
   });
 
   return createdInvoice;
+}
+
+export function normalizeInvoice(inv: any, items: any[] = []) {
+  if (!inv) return null;
+  const taxableAmount = inv.taxableAmount != null ? String(inv.taxableAmount) : '0.00';
+  const totalTaxAmount = inv.totalTaxAmount != null ? String(inv.totalTaxAmount) : (inv.taxAmount != null ? String(inv.taxAmount) : '0.00');
+  const grandTotal = inv.grandTotal != null ? String(inv.grandTotal) : (inv.finalPayable != null ? String(inv.finalPayable) : '0.00');
+  const oldGoldDeductionTotal = inv.oldGoldDeductionTotal != null ? String(inv.oldGoldDeductionTotal) : (inv.oldGoldDeduction != null ? String(inv.oldGoldDeduction) : '0.00');
+
+  const halfTax = (parseFloat(totalTaxAmount || '0.00') / 2).toFixed(2);
+  const cgstAmount = inv.cgstAmount != null ? String(inv.cgstAmount) : halfTax;
+  const sgstAmount = inv.sgstAmount != null ? String(inv.sgstAmount) : halfTax;
+
+  const normalizedItems = (items || []).map((it: any) => {
+    const metalVal = it.metalValue != null ? String(it.metalValue) : (it.baseMetalValue != null ? String(it.baseMetalValue) : '0.00');
+    const finalAmt = it.finalAmount != null ? String(it.finalAmount) : (it.totalAmount != null ? String(it.totalAmount) : '0.00');
+    const taxAmt = it.taxAmount != null ? String(it.taxAmount) : '0.00';
+    const makingChg = it.makingCharges != null ? String(it.makingCharges) : '0.00';
+    const taxableAmt = it.taxableAmount != null ? String(it.taxableAmount) : '0.00';
+
+    return {
+      ...it,
+      metalValue: metalVal,
+      baseMetalValue: metalVal,
+      finalAmount: finalAmt,
+      totalAmount: finalAmt,
+      taxAmount: taxAmt,
+      makingCharges: makingChg,
+      taxableAmount: taxableAmt
+    };
+  });
+
+  return {
+    ...inv,
+    taxableAmount,
+    totalTaxAmount,
+    taxAmount: totalTaxAmount,
+    cgstAmount,
+    sgstAmount,
+    oldGoldDeductionTotal,
+    oldGoldDeduction: oldGoldDeductionTotal,
+    grandTotal,
+    finalPayable: grandTotal,
+    items: normalizedItems
+  };
 }
 
 export async function getInvoiceById(shopId: string, invoiceId: string) {
@@ -490,7 +532,7 @@ export async function getInvoiceById(shopId: string, invoiceId: string) {
   if (!inv) return null;
 
   const items = await db.select().from(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, inv.id));
-  return { ...inv, items };
+  return normalizeInvoice(inv, items);
 }
 
 export async function listInvoices(shopId: string) {
@@ -519,8 +561,5 @@ export async function listInvoices(shopId: string) {
     arr.push(item);
   }
 
-  return list.map((inv: any) => ({
-    ...inv,
-    items: itemsByInvoiceId.get(inv.id) || []
-  }));
+  return list.map((inv: any) => normalizeInvoice(inv, itemsByInvoiceId.get(inv.id) || []));
 }

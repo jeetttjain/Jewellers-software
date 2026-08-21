@@ -95,7 +95,8 @@ export const rateDefinitionSchema = z.object({
 export const updateRateDefinitionSchema = z.object({
   currentRate: currencyAmountSchema.optional(),
   isActive: z.boolean().optional(),
-  sortOrder: z.coerce.number().int().optional()
+  sortOrder: z.coerce.number().int().optional(),
+  changeReason: z.string().max(255).optional()
 });
 
 // Bulk Publish Daily Rates Schema
@@ -105,7 +106,8 @@ export const publishDailyRatesSchema = z.object({
       id: uuidSchema,
       rate: currencyAmountSchema
     })
-  ).min(1, { message: 'At least one rate must be provided for publishing' })
+  ).min(1, { message: 'At least one rate must be provided for publishing' }),
+  changeReason: z.string().max(255).optional()
 });
 
 // Legacy Gold Board Rate update schema

@@ -7,6 +7,7 @@ export interface CartTotals {
   netWeight: number;
   subtotalMetal: number;
   subtotalMaking: number;
+  subtotalWastage: number;
   subtotalStone: number;
   discountAmount: number;
   taxableAmount: number;
@@ -19,6 +20,7 @@ export interface CartTotals {
   // String aliases for backwards compatibility
   metalValueTotal: string;
   makingChargesTotal: string;
+  wastageValueTotal: string;
   stoneValueTotal: string;
   discountTotal: string;
   grandTotal: string;
@@ -29,7 +31,7 @@ interface CartContextType {
   customer: Customer | null;
   addItem: (
     item: JewelleryItemSummary,
-    currentRate: string,
+    currentRateOrBreakdown: string | PriceBreakdown,
     overrideOptions?: { isRateOverridden?: boolean; masterRate?: string; overrideReason?: string }
   ) => void;
   addCustomItem: (custom: Partial<CartItem>, currentRate: string) => void;
@@ -51,7 +53,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addItem = (
     item: JewelleryItemSummary,
-    currentRate: string,
+    currentRateOrBreakdown: string | PriceBreakdown,
     overrideOptions?: { isRateOverridden?: boolean; masterRate?: string; overrideReason?: string }
   ) => {
     // Duplicate Item Check
@@ -60,20 +62,39 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error(`This item (${item.itemCode}) is already added to the bill.`);
     }
 
-    const netWeight = calculateNetWeight(item.grossWeight, item.stoneWeight);
-    const baseMetalValue = decimalMultiply(netWeight, currentRate);
-    const wastageValue = decimalPercentage(baseMetalValue, item.wastagePct || '0');
+    let rateStr = '0.00';
+    let masterRateVal = '';
+    let isOverridden = false;
+    let overrideReasonVal: string | undefined = undefined;
 
-    let makingCharges = '0.00';
-    if (item.makingChargeType === MakingChargeType.PER_GRAM) {
-      makingCharges = formatCurrency(decimalMultiply(netWeight, item.makingChargeValue));
-    } else if (item.makingChargeType === MakingChargeType.PERCENTAGE) {
-      makingCharges = formatCurrency(decimalPercentage(baseMetalValue, item.makingChargeValue));
+    if (typeof currentRateOrBreakdown === 'object' && currentRateOrBreakdown !== null) {
+      const bd = currentRateOrBreakdown as any;
+      rateStr = String(bd.rateApplied || bd.boardRate || bd.masterRate || '0.00');
+      masterRateVal = String(bd.masterRate || bd.rateApplied || rateStr);
+      isOverridden = Boolean(bd.isRateOverridden ?? overrideOptions?.isRateOverridden);
+      overrideReasonVal = bd.overrideReason || overrideOptions?.overrideReason;
     } else {
-      makingCharges = formatCurrency(item.makingChargeValue);
+      rateStr = String(currentRateOrBreakdown || '0.00');
+      masterRateVal = overrideOptions?.masterRate ? String(overrideOptions.masterRate) : rateStr;
+      isOverridden = Boolean(overrideOptions?.isRateOverridden);
+      overrideReasonVal = overrideOptions?.overrideReason;
     }
 
-    const stoneVal = formatCurrency(item.stoneValue || '0');
+    const netWeight = calculateNetWeight(item.grossWeight, item.stoneWeight || '0.000');
+    const baseMetalValue = decimalMultiply(netWeight, rateStr);
+    const wastagePct = item.wastagePct || '0.00';
+    const wastageValue = decimalPercentage(baseMetalValue, wastagePct);
+
+    let makingCharges = '0.00';
+    if (item.makingChargeType === MakingChargeType.PER_GRAM || (item.makingChargeType as any) === 'PER_GRAM') {
+      makingCharges = formatCurrency(decimalMultiply(netWeight, item.makingChargeValue || '0.00'));
+    } else if (item.makingChargeType === MakingChargeType.PERCENTAGE || (item.makingChargeType as any) === 'PERCENTAGE') {
+      makingCharges = formatCurrency(decimalPercentage(baseMetalValue, item.makingChargeValue || '0.00'));
+    } else {
+      makingCharges = formatCurrency(item.makingChargeValue || '0.00');
+    }
+
+    const stoneVal = formatCurrency(item.stoneValue || '0.00');
     const taxableAmount = decimalAdd(
       decimalAdd(baseMetalValue, wastageValue),
       decimalAdd(makingCharges, stoneVal)
@@ -83,8 +104,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const finalPrice = decimalAdd(taxableAmount, taxAmount);
 
     const tempId = 'cart-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-    const masterRateVal = overrideOptions?.masterRate ? formatCurrency(overrideOptions.masterRate) : formatCurrency(currentRate);
-    const isOverridden = Boolean(overrideOptions?.isRateOverridden);
 
     const cartItem: CartItem = {
       id: tempId,
@@ -100,15 +119,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       stoneWeight: item.stoneWeight || '0.000',
       netWeight: formatWeight(netWeight),
       huid: item.huid,
-      boardRate: formatCurrency(currentRate),
-      masterRate: masterRateVal,
+      boardRate: formatCurrency(rateStr),
+      masterRate: formatCurrency(masterRateVal),
       isRateOverridden: isOverridden,
-      overrideReason: overrideOptions?.overrideReason,
+      overrideReason: overrideReasonVal,
       baseMetalValue: formatCurrency(baseMetalValue),
       makingChargeType: item.makingChargeType,
-      makingChargeValue: formatCurrency(item.makingChargeValue),
+      makingChargeValue: formatCurrency(item.makingChargeValue || '0.00'),
       makingChargesTotal: makingCharges,
-      wastagePct: item.wastagePct || '0.00',
+      wastagePct: wastagePct,
       wastageValue: formatCurrency(wastageValue),
       stoneValue: stoneVal,
       discount: '0.00',
@@ -117,8 +136,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       taxAmount: formatCurrency(taxAmount),
       finalPrice: formatCurrency(finalPrice),
       breakdown: {
-        rateApplied: formatCurrency(currentRate),
-        masterRate: masterRateVal,
+        rateApplied: formatCurrency(rateStr),
+        masterRate: formatCurrency(masterRateVal),
         baseMetalValue: formatCurrency(baseMetalValue),
         makingCharges: makingCharges,
         wastageValue: formatCurrency(wastageValue),
@@ -126,7 +145,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         taxableAmount: formatCurrency(taxableAmount),
         taxPercent,
         taxAmount: formatCurrency(taxAmount),
-      }
+        totalAmount: formatCurrency(finalPrice)
+      } as any
     };
 
     setItems((prev) => [...prev, cartItem]);
@@ -228,40 +248,44 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let netW = 0;
     let metalVal = 0;
     let mkTotal = 0;
+    let wastageTotal = 0;
     let stTotal = 0;
     let itemDiscounts = 0;
 
     items.forEach((it) => {
       grossW += parseFloat(it.grossWeight) || 0;
       netW += parseFloat(it.netWeight) || 0;
-      metalVal += parseFloat(it.baseMetalValue) || 0;
-      mkTotal += parseFloat(it.makingChargesTotal) || 0;
-      stTotal += parseFloat(it.stoneValue) || 0;
+      metalVal += parseFloat(it.baseMetalValue || (it.breakdown?.baseMetalValue) || '0') || 0;
+      mkTotal += parseFloat(it.makingChargesTotal || (it.breakdown?.makingCharges) || '0') || 0;
+      wastageTotal += parseFloat(it.wastageValue || (it.breakdown?.wastageValue) || '0') || 0;
+      stTotal += parseFloat(it.stoneValue || (it.breakdown?.stoneValue) || '0') || 0;
       itemDiscounts += parseFloat(it.discount) || 0;
     });
 
     const subtotalMetal = metalVal;
     const subtotalMaking = mkTotal;
+    const subtotalWastage = wastageTotal;
     const subtotalStone = stTotal;
     const totalDiscount = itemDiscounts + cartDiscount;
 
-    const baseSubtotal = subtotalMetal + subtotalMaking + subtotalStone;
+    const baseSubtotal = subtotalMetal + subtotalMaking + subtotalWastage + subtotalStone;
     const taxableAmount = Math.max(0, baseSubtotal - totalDiscount);
-    const taxAmount = taxableAmount * 0.03;
-    const cgstAmount = taxAmount / 2;
-    const sgstAmount = taxAmount / 2;
+    const taxAmount = Number((taxableAmount * 0.03).toFixed(2));
+    const cgstAmount = Number((taxAmount / 2).toFixed(2));
+    const sgstAmount = Number((taxAmount - cgstAmount).toFixed(2));
 
     const oldGoldDeduction = oldGoldTradeIn ? (parseFloat(oldGoldTradeIn.totalValuation) || 0) : 0;
 
     const rawGrand = taxableAmount + taxAmount - oldGoldDeduction;
     const finalPayable = Math.max(0, Math.round(rawGrand));
-    const roundOff = finalPayable - rawGrand;
+    const roundOff = Number((finalPayable - rawGrand).toFixed(2));
 
     return {
       grossWeight: grossW,
       netWeight: netW,
       subtotalMetal,
       subtotalMaking,
+      subtotalWastage,
       subtotalStone,
       discountAmount: totalDiscount,
       taxableAmount,
@@ -273,6 +297,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       finalPayable,
       metalValueTotal: subtotalMetal.toFixed(2),
       makingChargesTotal: subtotalMaking.toFixed(2),
+      wastageValueTotal: subtotalWastage.toFixed(2),
       stoneValueTotal: subtotalStone.toFixed(2),
       discountTotal: totalDiscount.toFixed(2),
       grandTotal: finalPayable.toFixed(2)

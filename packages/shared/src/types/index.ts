@@ -93,6 +93,7 @@ export interface RateHistoryEntry {
   action: string;
   changedBy: string;
   changedByName?: string | null;
+  changeReason?: string | null;
   effectiveFrom: string;
   createdAt: string;
 }

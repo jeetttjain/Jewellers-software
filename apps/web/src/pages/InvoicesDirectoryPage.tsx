@@ -89,10 +89,10 @@ export const InvoicesDirectoryPage: React.FC = () => {
                     {inv.items.length} Piece(s)
                   </td>
                   <td className="py-3.5 px-4 text-right text-slate-700">
-                    ₹{inv.taxableAmount}
+                    ₹{Number(inv.taxableAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="py-3.5 px-4 text-right font-bold text-slate-900 text-sm">
-                    ₹{Number(inv.finalPayable).toLocaleString('en-IN')}
+                    ₹{Number(inv.grandTotal ?? (inv as any).finalPayable ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="py-3.5 px-4 text-right font-sans">
                     <Link

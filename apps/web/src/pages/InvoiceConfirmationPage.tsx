@@ -15,6 +15,20 @@ import {
   ShieldCheck 
 } from 'lucide-react';
 
+const parseMoney = (val: any): number => {
+  if (val === null || val === undefined || val === '') return 0;
+  const num = typeof val === 'number' ? val : parseFloat(String(val));
+  return Number.isFinite(num) ? num : 0;
+};
+
+const formatMoney = (val: any): string => {
+  return parseMoney(val).toFixed(2);
+};
+
+const formatCurrency = (val: any): string => {
+  return parseMoney(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 export const InvoiceConfirmationPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -49,6 +63,14 @@ export const InvoiceConfirmationPage: React.FC = () => {
       </div>
     );
   }
+
+  // Pre-calculate validated monetary values
+  const taxableAmount = parseMoney(invoice.taxableAmount);
+  const totalTaxAmount = parseMoney(invoice.totalTaxAmount ?? (invoice as any).taxAmount ?? (taxableAmount * 0.03));
+  const cgstAmount = parseMoney(invoice.cgstAmount ?? (totalTaxAmount / 2));
+  const sgstAmount = parseMoney(invoice.sgstAmount ?? (totalTaxAmount / 2));
+  const oldGoldDeduction = parseMoney(invoice.oldGoldDeductionTotal ?? (invoice as any).oldGoldDeduction);
+  const grandTotal = parseMoney(invoice.grandTotal ?? (invoice as any).finalPayable ?? (taxableAmount + totalTaxAmount - oldGoldDeduction));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -153,25 +175,33 @@ export const InvoiceConfirmationPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-mono">
-                {invoice.items.map((it, idx) => (
-                  <tr key={it.id}>
-                    <td className="py-3 px-2 text-slate-500">{idx + 1}</td>
-                    <td className="py-3 px-3 font-sans">
-                      <div className="font-bold text-slate-900">{it.designTitle}</div>
-                      <div className="text-[10px] text-slate-500 font-mono">
-                        {it.itemCode} • {it.purity} • HUID: <span className="font-bold text-slate-800">{it.huid || 'HALLMARKED'}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-right">{it.grossWeight}g</td>
-                    <td className="py-3 px-3 text-right font-bold">{it.netWeight}g</td>
-                    <td className="py-3 px-3 text-right">₹{it.rateApplied}</td>
-                    <td className="py-3 px-3 text-right">₹{it.baseMetalValue}</td>
-                    <td className="py-3 px-3 text-right">₹{it.makingCharges}</td>
-                    <td className="py-3 px-3 text-right font-semibold">₹{it.taxableAmount}</td>
-                    <td className="py-3 px-3 text-right text-slate-600">₹{it.taxAmount}</td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-900">₹{Number(it.totalAmount).toLocaleString('en-IN')}</td>
-                  </tr>
-                ))}
+                {invoice.items.map((it, idx) => {
+                  const itemMetal = parseMoney(it.metalValue ?? (it as any).baseMetalValue);
+                  const itemMaking = parseMoney(it.makingCharges);
+                  const itemTaxable = parseMoney(it.taxableAmount ?? (itemMetal + itemMaking));
+                  const itemTax = parseMoney(it.taxAmount ?? (itemTaxable * 0.03));
+                  const itemTotal = parseMoney(it.finalAmount ?? (it as any).totalAmount ?? (itemTaxable + itemTax));
+
+                  return (
+                    <tr key={it.id || idx}>
+                      <td className="py-3 px-2 text-slate-500">{idx + 1}</td>
+                      <td className="py-3 px-3 font-sans">
+                        <div className="font-bold text-slate-900">{it.designTitle}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {it.itemCode} • {it.purity} • HUID: <span className="font-bold text-slate-800">{it.huid || 'HALLMARKED'}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right">{it.grossWeight}g</td>
+                      <td className="py-3 px-3 text-right font-bold">{it.netWeight}g</td>
+                      <td className="py-3 px-3 text-right">₹{formatMoney(it.boardRate || (it as any).rateApplied)}</td>
+                      <td className="py-3 px-3 text-right">₹{formatMoney(itemMetal)}</td>
+                      <td className="py-3 px-3 text-right">₹{formatMoney(itemMaking)}</td>
+                      <td className="py-3 px-3 text-right font-semibold">₹{formatMoney(itemTaxable)}</td>
+                      <td className="py-3 px-3 text-right text-slate-600">₹{formatMoney(itemTax)}</td>
+                      <td className="py-3 px-3 text-right font-bold text-slate-900">₹{formatCurrency(itemTotal)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -194,25 +224,25 @@ export const InvoiceConfirmationPage: React.FC = () => {
             <div className="space-y-2 font-mono text-xs">
               <div className="flex justify-between text-slate-600">
                 <span>Taxable Amount:</span>
-                <span className="font-bold text-slate-900">₹{invoice.taxableAmount}</span>
+                <span className="font-bold text-slate-900">₹{formatMoney(taxableAmount)}</span>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>CGST (1.5%):</span>
-                <span>₹{(parseFloat(invoice.taxAmount) / 2).toFixed(2)}</span>
+                <span>₹{formatMoney(cgstAmount)}</span>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>SGST (1.5%):</span>
-                <span>₹{(parseFloat(invoice.taxAmount) / 2).toFixed(2)}</span>
+                <span>₹{formatMoney(sgstAmount)}</span>
               </div>
-              {parseFloat(invoice.oldGoldDeduction) > 0 && (
+              {oldGoldDeduction > 0 && (
                 <div className="flex justify-between text-emerald-700 font-bold">
                   <span>Old Gold Trade-In Credit:</span>
-                  <span>- ₹{invoice.oldGoldDeduction}</span>
+                  <span>- ₹{formatMoney(oldGoldDeduction)}</span>
                 </div>
               )}
               <div className="flex justify-between border-t-2 border-slate-900 pt-2 text-base font-bold text-slate-950">
                 <span>Grand Total (INR):</span>
-                <span className="text-amber-700">₹{Number(invoice.finalPayable).toLocaleString('en-IN')}</span>
+                <span className="text-amber-700">₹{formatCurrency(grandTotal)}</span>
               </div>
               <div className="pt-6 text-right font-sans">
                 <div className="h-10"></div>
@@ -241,43 +271,51 @@ export const InvoiceConfirmationPage: React.FC = () => {
           </div>
 
           <div className="space-y-2 border-b border-dashed border-slate-400 pb-3">
-            {invoice.items.map((it) => (
-              <div key={it.id} className="space-y-0.5">
-                <div className="font-bold text-xs">{it.designTitle}</div>
-                <div className="flex justify-between text-[10px]">
-                  <span>Net: {it.netWeight}g @ ₹{it.rateApplied}</span>
-                  <span>₹{it.baseMetalValue}</span>
+            {invoice.items.map((it, idx) => {
+              const itemMetal = parseMoney(it.metalValue ?? (it as any).baseMetalValue);
+              const itemMaking = parseMoney(it.makingCharges);
+              const itemTaxable = parseMoney(it.taxableAmount ?? (itemMetal + itemMaking));
+              const itemTax = parseMoney(it.taxAmount ?? (itemTaxable * 0.03));
+              const itemTotal = parseMoney(it.finalAmount ?? (it as any).totalAmount ?? (itemTaxable + itemTax));
+
+              return (
+                <div key={it.id || idx} className="space-y-0.5">
+                  <div className="font-bold text-xs">{it.designTitle}</div>
+                  <div className="flex justify-between text-[10px]">
+                    <span>Net: {it.netWeight}g @ ₹{formatMoney(it.boardRate || (it as any).rateApplied)}</span>
+                    <span>₹{formatMoney(itemMetal)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-600">
+                    <span>Making + GST:</span>
+                    <span>₹{formatMoney(itemMaking + itemTax)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold">
+                    <span>HUID: {it.huid || '916'}</span>
+                    <span>₹{formatMoney(itemTotal)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[10px] text-slate-600">
-                  <span>Making + GST:</span>
-                  <span>₹{(parseFloat(it.makingCharges) + parseFloat(it.taxAmount)).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-bold">
-                  <span>HUID: {it.huid || '916'}</span>
-                  <span>₹{it.totalAmount}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="space-y-1 text-xs">
             <div className="flex justify-between">
               <span>Taxable:</span>
-              <span>₹{invoice.taxableAmount}</span>
+              <span>₹{formatMoney(taxableAmount)}</span>
             </div>
             <div className="flex justify-between">
               <span>GST 3%:</span>
-              <span>₹{invoice.taxAmount}</span>
+              <span>₹{formatMoney(totalTaxAmount)}</span>
             </div>
-            {parseFloat(invoice.oldGoldDeduction) > 0 && (
+            {oldGoldDeduction > 0 && (
               <div className="flex justify-between font-bold">
                 <span>Old Gold Credit:</span>
-                <span>- ₹{invoice.oldGoldDeduction}</span>
+                <span>- ₹{formatMoney(oldGoldDeduction)}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-slate-900 pt-1 text-sm font-bold">
               <span>NET PAYABLE:</span>
-              <span>₹{Number(invoice.finalPayable).toLocaleString('en-IN')}</span>
+              <span>₹{formatCurrency(grandTotal)}</span>
             </div>
           </div>
 

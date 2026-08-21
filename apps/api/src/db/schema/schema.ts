@@ -130,11 +130,13 @@ export const rateHistory = pgTable('rate_history', {
   action: varchar('action', { length: 50 }).notNull(), // 'RATE_CREATED', 'RATE_UPDATED', 'RATE_ACTIVATED', 'RATE_DEACTIVATED', 'RATE_PUBLISHED'
   changedBy: uuid('changed_by').references(() => users.id).notNull(),
   changedByName: varchar('created_by_name', { length: 100 }),
+  changeReason: text('change_reason'),
   effectiveFrom: timestamp('effective_from', { withTimezone: true }).defaultNow().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 }, (table) => ({
   shopRateDefIdx: index('idx_rate_history_shop_rate_def').on(table.shopId, table.rateDefinitionId),
-  shopEffectiveIdx: index('idx_rate_history_shop_effective').on(table.shopId, table.effectiveFrom)
+  shopEffectiveIdx: index('idx_rate_history_shop_effective').on(table.shopId, table.effectiveFrom),
+  shopMetalPurityIdx: index('idx_rate_history_shop_metal_purity').on(table.shopId, table.metal, table.purity)
 }));
 
 // 7. Canonical Jewellery Items Inventory Table

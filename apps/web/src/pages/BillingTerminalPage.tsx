@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { api } from '../services/api/client.js';
-import { JewelleryItemSummary, Customer, GoldRateSnapshot, Metal, PurityKarat, ItemStatus, OldGoldTransaction } from '@jewellery-pos/shared';
+import { JewelleryItemSummary, Customer, GoldRateSnapshot, Metal, PurityKarat, ItemStatus, OldGoldTransaction, RateDefinition } from '@jewellery-pos/shared';
 import { 
   ShoppingCart, 
   Search, 
@@ -33,6 +33,7 @@ export const BillingTerminalPage: React.FC = () => {
   const [catalog, setCatalog] = useState<JewelleryItemSummary[]>([]);
   const [searchCode, setSearchCode] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [rateDefinitions, setRateDefinitions] = useState<RateDefinition[]>([]);
 
   // Item Details Confirmation Modal State
   const [pendingQuote, setPendingQuote] = useState<{ item: JewelleryItemSummary; breakdown: any } | null>(null);
@@ -67,12 +68,16 @@ export const BillingTerminalPage: React.FC = () => {
 
   const loadInitialData = async () => {
     try {
-      const [itemsRes, custRes] = await Promise.all([
+      const [itemsRes, custRes, ratesRes] = await Promise.all([
         api.get<JewelleryItemSummary[]>('/items', { params: { status: 'IN_STOCK' } }),
-        api.get<Customer[]>('/customers')
+        api.get<Customer[]>('/customers'),
+        api.get<RateDefinition[]>('/rates/definitions').catch(() => [])
       ]);
       setCatalog(itemsRes);
       setCustomersList(custRes);
+      if (ratesRes && Array.isArray(ratesRes)) {
+        setRateDefinitions(ratesRes);
+      }
     } catch {
       // Fallback
     }
@@ -154,11 +159,41 @@ export const BillingTerminalPage: React.FC = () => {
     }
   };
 
+  const resolveRateForCustomItem = (metal: Metal | string, purity: PurityKarat | string): number => {
+    const cleanMetal = String(metal || 'GOLD').trim().toUpperCase();
+    const cleanPurity = String(purity || '22K').trim().toUpperCase();
+
+    const def = rateDefinitions.find(
+      (d) =>
+        d.isActive &&
+        d.metal.toUpperCase() === cleanMetal &&
+        (d.purity.toUpperCase() === cleanPurity ||
+          d.purity.toUpperCase().startsWith(cleanPurity) ||
+          cleanPurity.startsWith(d.purity.toUpperCase()))
+    );
+
+    if (def && parseFloat(def.currentRate) > 0) {
+      return parseFloat(def.currentRate);
+    }
+
+    // Dynamic fallbacks if rate definitions are not yet loaded from backend
+    if (cleanMetal === 'GOLD') {
+      if (cleanPurity.includes('24')) return 7450;
+      if (cleanPurity.includes('22')) return 6980;
+      if (cleanPurity.includes('18')) return 5720;
+      if (cleanPurity.includes('14')) return 4450;
+      return 6980;
+    }
+    if (cleanMetal === 'SILVER') return 88.5;
+    if (cleanMetal === 'PLATINUM') return 3150;
+    return 6980;
+  };
+
   const handleAddCustomPiece = () => {
     const gross = parseFloat(customGrossWt) || 0;
     const net = parseFloat(customNetWt) || 0;
     const mc = parseFloat(customMc) || 0;
-    const rate = customPurity === PurityKarat.K24 ? 7450 : 6980;
+    const rate = resolveRateForCustomItem(customMetal, customPurity);
     const baseMetal = (net * rate).toFixed(2);
     const taxable = (parseFloat(baseMetal) + mc).toFixed(2);
     const tax = (parseFloat(taxable) * 0.03).toFixed(2);
@@ -186,7 +221,7 @@ export const BillingTerminalPage: React.FC = () => {
     });
 
     setIsCustomModalOpen(false);
-    addToast('Custom jewellery item added to POS cart', 'success');
+    addToast(`Added custom piece "${customTitle}" (₹${rate.toFixed(2)}/g) to cart`, 'success');
   };
 
   const filteredCustomers = customersList.filter(
@@ -463,6 +498,18 @@ export const BillingTerminalPage: React.FC = () => {
                 <span>Making Charges Total:</span>
                 <span className="font-bold text-white">₹{totals.subtotalMaking.toFixed(2)}</span>
               </div>
+              {totals.subtotalWastage > 0 && (
+                <div className="flex justify-between text-slate-300">
+                  <span>Wastage Value Total:</span>
+                  <span className="font-bold text-white">₹{totals.subtotalWastage.toFixed(2)}</span>
+                </div>
+              )}
+              {totals.subtotalStone > 0 && (
+                <div className="flex justify-between text-slate-300">
+                  <span>Stone Value Total:</span>
+                  <span className="font-bold text-white">₹{totals.subtotalStone.toFixed(2)}</span>
+                </div>
+              )}
 
               {/* Discount Input */}
               <div className="flex justify-between items-center text-slate-300 py-1">
@@ -669,6 +716,13 @@ export const BillingTerminalPage: React.FC = () => {
                     className="w-full border border-slate-200 rounded-lg p-2 font-mono font-bold text-xs"
                   />
                 </div>
+              </div>
+
+              <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-medium">Showroom Board Rate:</span>
+                <span className="font-mono font-bold text-amber-900">
+                  ₹{resolveRateForCustomItem(customMetal, customPurity).toFixed(2)}/g
+                </span>
               </div>
 
               <div className="pt-3 flex gap-2">

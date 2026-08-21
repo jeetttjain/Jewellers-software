@@ -42,6 +42,22 @@ export const RatesManagerPage: React.FC = () => {
   const [editRate, setEditRate] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Publish reason state
+  const [publishReason, setPublishReason] = useState('');
+
+  // Rate History Filters
+  const [filterMetal, setFilterMetal] = useState('ALL');
+  const [filterPurity, setFilterPurity] = useState('ALL');
+  const [filterFromDate, setFilterFromDate] = useState('');
+  const [filterToDate, setFilterToDate] = useState('');
+
+  // Historical Rate Lookup Query State
+  const [queryMetal, setQueryMetal] = useState('GOLD');
+  const [queryPurity, setQueryPurity] = useState('22K');
+  const [queryDate, setQueryDate] = useState(new Date().toISOString().slice(0, 16));
+  const [queryResult, setQueryResult] = useState<any | null>(null);
+  const [isQuerying, setIsQuerying] = useState(false);
+
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -107,8 +123,12 @@ export const RatesManagerPage: React.FC = () => {
         rate: parseFloat(rate || '0').toFixed(2)
       }));
 
-      await api.post('/rates/publish', { rates: ratesPayload });
+      await api.post('/rates/publish', {
+        rates: ratesPayload,
+        changeReason: publishReason.trim() || undefined
+      });
       addToast("Today's Showroom Rates Published Successfully!", 'success');
+      setPublishReason('');
       await loadData();
     } catch (err: any) {
       addToast(err.message || 'Failed to publish rates', 'error');
@@ -116,6 +136,49 @@ export const RatesManagerPage: React.FC = () => {
       setIsPublishing(false);
     }
   };
+
+  // Query Historical Rate as of specific Date & Time
+  const handleLookupHistoricalRate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsQuerying(true);
+    setQueryResult(null);
+
+    try {
+      const res = await api.get<any>(
+        `/rates/historical?metal=${encodeURIComponent(queryMetal)}&purity=${encodeURIComponent(queryPurity)}&asOfDate=${encodeURIComponent(queryDate)}`
+      );
+      setQueryResult(res);
+      addToast(`Found historical rate: ₹${res.rate}/g for ${res.metal} ${res.purity}`, 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to lookup historical rate', 'error');
+    } finally {
+      setIsQuerying(false);
+    }
+  };
+
+  // Filtered History
+  const filteredHistory = history.filter((h) => {
+    if (filterMetal !== 'ALL' && h.metal.toUpperCase() !== filterMetal.toUpperCase()) {
+      return false;
+    }
+    if (filterPurity !== 'ALL' && h.purity.toUpperCase() !== filterPurity.toUpperCase()) {
+      return false;
+    }
+    if (filterFromDate) {
+      const entryTime = new Date(h.effectiveFrom || h.createdAt).getTime();
+      const fromTime = new Date(filterFromDate).getTime();
+      if (entryTime < fromTime) return false;
+    }
+    if (filterToDate) {
+      const entryTime = new Date(h.effectiveFrom || h.createdAt).getTime();
+      const toTime = new Date(filterToDate).setHours(23, 59, 59, 999);
+      if (entryTime > toTime) return false;
+    }
+    return true;
+  });
+
+  // Unique purities for filter dropdown
+  const uniquePurities = Array.from(new Set(history.map((h) => h.purity)));
 
   // Toggle Active / Deactivated status for a rate definition
   const handleToggleStatus = async (def: RateDefinition) => {
@@ -336,56 +399,222 @@ export const RatesManagerPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Immutable Rate Audit Trail Log */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <History className="w-4 h-4 text-slate-600" />
-                <span>Immutable Rate History & Audit Trail</span>
+          {/* Historical Rate Lookup Tool (As-of Date & Time Query) */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 shadow-lg space-y-4 border border-slate-700">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Historical Rate Lookup Engine</span>
               </h2>
               <span className="text-[10px] font-mono text-slate-400">
-                {history.length} Event Logs
+                As-Of-Date Audit
               </span>
             </div>
 
-            <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
-              {history.length === 0 ? (
+            <p className="text-[11px] text-slate-300">
+              Query the exact showroom metal rate active at any past date and time (e.g. 12 days ago or before a price hike).
+            </p>
+
+            <form onSubmit={handleLookupHistoricalRate} className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Metal</label>
+                <select
+                  value={queryMetal}
+                  onChange={(e) => setQueryMetal(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-semibold focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="GOLD">Gold</option>
+                  <option value="SILVER">Silver</option>
+                  <option value="PLATINUM">Platinum</option>
+                  <option value="ROSE GOLD">Rose Gold</option>
+                  <option value="WHITE GOLD">White Gold</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Purity</label>
+                <input
+                  type="text"
+                  value={queryPurity}
+                  onChange={(e) => setQueryPurity(e.target.value)}
+                  placeholder="e.g. 22K, 24K, 18K, 999"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 font-mono text-white focus:border-amber-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">As of Date & Time</label>
+                <input
+                  type="datetime-local"
+                  value={queryDate}
+                  onChange={(e) => setQueryDate(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 font-mono text-white text-[11px] focus:border-amber-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="sm:col-span-3">
+                <button
+                  type="submit"
+                  disabled={isQuerying}
+                  className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>{isQuerying ? 'Querying Audit Trail...' : 'Lookup Rate for Selected Timestamp'}</span>
+                </button>
+              </div>
+            </form>
+
+            {queryResult && (
+              <div className="p-3 bg-slate-800/80 border border-amber-500/40 rounded-xl space-y-1 text-xs">
+                <div className="flex justify-between items-center text-[10px] text-amber-400">
+                  <span className="font-bold uppercase tracking-wider">
+                    {queryResult.isExactHistoricalMatch ? '✓ Verified Historical Snapshot' : 'Current Default Benchmark'}
+                  </span>
+                  <span>Effective: {new Date(queryResult.effectiveFrom).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm font-mono font-bold text-white pt-1">
+                  <span>{queryResult.metal} {queryResult.purity}</span>
+                  <span className="text-amber-400 text-base">₹{Number(queryResult.rate).toLocaleString('en-IN')}/g</span>
+                </div>
+                {queryResult.changeReason && (
+                  <div className="text-[10px] text-slate-400">
+                    Reason: {queryResult.changeReason}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Immutable Rate Audit Trail Log with Interactive Filters */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <History className="w-4 h-4 text-slate-600" />
+                  <span>Immutable Rate History & Audit Trail</span>
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  Showing {filteredHistory.length} of {history.length} logged rate transitions
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Metal</label>
+                <select
+                  value={filterMetal}
+                  onChange={(e) => setFilterMetal(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-slate-800 text-[11px]"
+                >
+                  <option value="ALL">All Metals</option>
+                  <option value="GOLD">Gold</option>
+                  <option value="SILVER">Silver</option>
+                  <option value="PLATINUM">Platinum</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Purity</label>
+                <select
+                  value={filterPurity}
+                  onChange={(e) => setFilterPurity(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-slate-800 text-[11px]"
+                >
+                  <option value="ALL">All Purities</option>
+                  {uniquePurities.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">From Date</label>
+                <input
+                  type="date"
+                  value={filterFromDate}
+                  onChange={(e) => setFilterFromDate(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-slate-800 text-[11px]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">To Date</label>
+                <input
+                  type="date"
+                  value={filterToDate}
+                  onChange={(e) => setFilterToDate(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded px-1.5 py-1 text-slate-800 text-[11px]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {filteredHistory.length === 0 ? (
                 <div className="text-center py-6 text-xs text-slate-400">
-                  No rate changes logged yet.
+                  No rate changes match the selected filters.
                 </div>
               ) : (
-                history.map((h) => (
-                  <div
-                    key={h.id}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs"
-                  >
-                    <div className="flex justify-between items-center text-[10px] text-slate-500">
-                      <span className="font-bold font-mono px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-700">
-                        {h.action}
-                      </span>
-                      <span>{new Date(h.createdAt).toLocaleString('en-IN')}</span>
-                    </div>
+                filteredHistory.map((h) => {
+                  const prevNum = h.previousRate ? parseFloat(h.previousRate) : null;
+                  const newNum = parseFloat(h.newRate);
+                  const diff = prevNum !== null ? newNum - prevNum : null;
+                  const diffPct = prevNum && prevNum > 0 ? ((diff! / prevNum) * 100).toFixed(2) : null;
 
-                    <div className="flex items-center justify-between font-mono text-[11px] pt-1">
-                      <span className="font-bold text-slate-900">
-                        {h.metal} {h.purity} {h.fineness ? `(${h.fineness})` : ''}
-                      </span>
-                      <div>
-                        {h.previousRate ? (
-                          <span className="text-slate-400 line-through mr-2">
-                            ₹{h.previousRate}
-                          </span>
-                        ) : null}
-                        <span className="font-bold text-amber-700">₹{h.newRate}/g</span>
+                  return (
+                    <div
+                      key={h.id}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs"
+                    >
+                      <div className="flex justify-between items-center text-[10px] text-slate-500">
+                        <span className="font-bold font-mono px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-700">
+                          {h.action}
+                        </span>
+                        <span className="font-mono">{new Date(h.effectiveFrom || h.createdAt).toLocaleString('en-IN')}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between font-mono text-[11px] pt-1">
+                        <span className="font-bold text-slate-900">
+                          {h.metal} {h.purity} {h.fineness ? `(${h.fineness})` : ''}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {prevNum !== null && (
+                            <span className="text-slate-400 line-through text-[10px]">
+                              ₹{h.previousRate}
+                            </span>
+                          )}
+                          <span className="font-bold text-amber-700">₹{h.newRate}/g</span>
+                          {diff !== null && diff !== 0 && (
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                diff > 0
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}
+                            >
+                              {diff > 0 ? `+₹${diff.toFixed(2)} (+${diffPct}%)` : `-₹${Math.abs(diff).toFixed(2)} (${diffPct}%)`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-[10px] text-slate-500 flex flex-wrap items-center justify-between gap-1 pt-0.5">
+                        <div className="flex items-center gap-1">
+                          <Shield className="w-3 h-3 text-emerald-600" />
+                          <span>Changed by: <b>{h.changedByName || 'Authorized Owner'}</b></span>
+                        </div>
+                        {h.changeReason && (
+                          <div className="italic text-slate-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                            "{h.changeReason}"
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <Shield className="w-3 h-3 text-emerald-600" />
-                      <span>Changed by: {h.changedByName || 'Authorized Owner'}</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -408,7 +637,7 @@ export const RatesManagerPage: React.FC = () => {
           </p>
 
           <form onSubmit={handlePublishRates} className="space-y-4 text-xs">
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
               {definitions
                 .filter((d) => d.isActive)
                 .map((def) => (
@@ -451,6 +680,20 @@ export const RatesManagerPage: React.FC = () => {
                     </div>
                   </div>
                 ))}
+            </div>
+
+            {/* Change Reason Note */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-600 mb-1">
+                Change Reason / Bulletin Note (Optional)
+              </label>
+              <input
+                type="text"
+                value={publishReason}
+                onChange={(e) => setPublishReason(e.target.value)}
+                placeholder="e.g. MCX Morning Bullion Update / Dollar FX Adjustment"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-xs focus:bg-white focus:border-amber-500 focus:outline-none"
+              />
             </div>
 
             <button

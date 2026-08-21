@@ -6,7 +6,8 @@ import {
   createRateDefinition,
   updateRateDefinition,
   publishDailyRates,
-  createRatesSnapshot
+  createRatesSnapshot,
+  getHistoricalRate
 } from '../services/rates.service.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { ApiResponse } from '@jewellery-pos/shared';
@@ -42,16 +43,69 @@ export const ratesRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     return reply.send(response);
   });
 
-  // 3. Get Immutable Rate Change History Log
+  // 3. Get Immutable Rate Change History Log with Optional Filters
   app.get('/rates/history', { preHandler: [authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const shopId = request.user!.shopId;
-    const history = await getRatesHistory(shopId);
+    const query = (request.query || {}) as {
+      metal?: string;
+      purity?: string;
+      fromDate?: string;
+      toDate?: string;
+    };
+
+    const history = await getRatesHistory(shopId, query);
 
     const response: ApiResponse = {
       success: true,
       data: history
     };
     return reply.send(response);
+  });
+
+  // 3b. Query Historical Rate as of specific Date & Time
+  app.get('/rates/historical', { preHandler: [authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const shopId = request.user!.shopId;
+    const query = (request.query || {}) as {
+      metal?: string;
+      purity?: string;
+      fineness?: string;
+      asOfDate?: string;
+    };
+
+    if (!query.metal || !query.asOfDate) {
+      const response: ApiResponse = {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Both metal and asOfDate query parameters are required for historical rate lookup.'
+        }
+      };
+      return reply.status(400).send(response);
+    }
+
+    try {
+      const rateInfo = await getHistoricalRate(shopId, {
+        metal: query.metal,
+        purity: query.purity,
+        fineness: query.fineness ? parseInt(query.fineness, 10) : undefined,
+        asOfDate: query.asOfDate
+      });
+
+      const response: ApiResponse = {
+        success: true,
+        data: rateInfo
+      };
+      return reply.send(response);
+    } catch (err: any) {
+      const response: ApiResponse = {
+        success: false,
+        error: {
+          code: 'HISTORICAL_RATE_ERROR',
+          message: err.message || 'Failed to lookup historical rate'
+        }
+      };
+      return reply.status(400).send(response);
+    }
   });
 
   // 4. Create New Rate Master Definition (Owner ADMIN only)
@@ -132,7 +186,8 @@ export const ratesRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
           {
             currentRate: parseResult.data.currentRate?.toString(),
             isActive: parseResult.data.isActive,
-            sortOrder: parseResult.data.sortOrder
+            sortOrder: parseResult.data.sortOrder,
+            changeReason: parseResult.data.changeReason
           },
           request.user!.id,
           request.user!.name
@@ -163,7 +218,7 @@ export const ratesRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
     { preHandler: [authenticate, requireRole(['ADMIN'])] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const body = (request.body || {}) as { isActive?: boolean };
+      const body = (request.body || {}) as { isActive?: boolean; changeReason?: string };
       const shopId = request.user!.shopId;
       const isActive = Boolean(body.isActive);
 
@@ -171,7 +226,7 @@ export const ratesRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
         const updated = await updateRateDefinition(
           shopId,
           id,
-          { isActive },
+          { isActive, changeReason: body.changeReason },
           request.user!.id,
           request.user!.name
         );
@@ -218,7 +273,8 @@ export const ratesRoutes: FastifyPluginAsync = async (app: FastifyInstance) => {
           shopId,
           parseResult.data.rates.map((r: any) => ({ id: r.id, rate: r.rate.toString() })),
           request.user!.id,
-          request.user!.name
+          request.user!.name,
+          parseResult.data.changeReason
         );
 
         const response: ApiResponse = {

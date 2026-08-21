@@ -52,7 +52,13 @@ export const ScanResultPage: React.FC = () => {
 
   const handleAddToCart = () => {
     if (item && breakdown) {
-      addItem(item, breakdown);
+      const masterRate = breakdown.masterRate || breakdown.rateApplied;
+      const appliedRate = breakdown.rateApplied;
+      addItem(item, breakdown, {
+        isRateOverridden: breakdown.isRateOverridden || false,
+        masterRate,
+        overrideReason: breakdown.overrideReason
+      });
       addToast(`Added ${item.itemCode} to POS billing cart!`, 'success');
       navigate('/billing/new');
     }

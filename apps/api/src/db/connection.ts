@@ -226,9 +226,11 @@ export async function initDatabase(_db?: any) {
       action VARCHAR(50) NOT NULL,
       changed_by UUID NOT NULL REFERENCES users(id),
       created_by_name VARCHAR(100),
+      change_reason TEXT,
       effective_from TIMESTAMPTZ DEFAULT NOW() NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
     );`,
+    `ALTER TABLE rate_history ADD COLUMN IF NOT EXISTS change_reason TEXT;`,
 
     // 7. Canonical jewellery_items Table
     `CREATE TABLE IF NOT EXISTS jewellery_items (
