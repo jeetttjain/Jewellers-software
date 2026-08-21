@@ -83,7 +83,7 @@ export const ScanResultPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Col: Tag Details (5 cols) */}
-        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-6 shadow-md space-y-4">
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-md space-y-4">
           <div className="flex justify-between items-start">
             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
               {item.status}
@@ -152,14 +152,14 @@ export const ScanResultPage: React.FC = () => {
           )}
 
           {/* Barcode / QR Preview */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 overflow-x-auto">
             <BarcodeSvg value={item.itemCode} width={130} height={32} />
             <QRCodeSvg value={`pos://t/${item.id}`} size={42} />
           </div>
         </div>
 
         {/* Right Col: Instant Live Quote Breakdown (7 cols) */}
-        <div className="lg:col-span-7 bg-slate-900 text-white rounded-2xl p-6 shadow-xl space-y-5">
+        <div className="lg:col-span-7 bg-slate-900 text-white rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div>
               <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold flex items-center gap-1">

@@ -60,52 +60,54 @@ export const InvoicesDirectoryPage: React.FC = () => {
 
       {/* Invoices List */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px] bg-slate-50">
-              <th className="py-3 px-4">Invoice #</th>
-              <th className="py-3 px-4">Date & Time</th>
-              <th className="py-3 px-4">Customer Name</th>
-              <th className="py-3 px-4">Items Count</th>
-              <th className="py-3 px-4 text-right">Taxable</th>
-              <th className="py-3 px-4 text-right">Total Payable</th>
-              <th className="py-3 px-4 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 font-mono">
-            {filtered.map((inv) => (
-              <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                <td className="py-3.5 px-4 font-bold text-slate-900">
-                  {inv.invoiceNumber}
-                </td>
-                <td className="py-3.5 px-4 text-slate-600 font-sans text-xs">
-                  {new Date(inv.createdAt).toLocaleString('en-IN')}
-                </td>
-                <td className="py-3.5 px-4 font-sans font-bold text-slate-900">
-                  {inv.customerName}
-                </td>
-                <td className="py-3.5 px-4 text-slate-600">
-                  {inv.items.length} Piece(s)
-                </td>
-                <td className="py-3.5 px-4 text-right text-slate-700">
-                  ₹{inv.taxableAmount}
-                </td>
-                <td className="py-3.5 px-4 text-right font-bold text-slate-900 text-sm">
-                  ₹{Number(inv.finalPayable).toLocaleString('en-IN')}
-                </td>
-                <td className="py-3.5 px-4 text-right font-sans">
-                  <Link
-                    to={`/bills/${inv.id}`}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold rounded text-xs transition-colors"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>View / Print</span>
-                  </Link>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px] bg-slate-50">
+                <th className="py-3 px-4">Invoice #</th>
+                <th className="py-3 px-4">Date & Time</th>
+                <th className="py-3 px-4">Customer Name</th>
+                <th className="py-3 px-4">Items Count</th>
+                <th className="py-3 px-4 text-right">Taxable</th>
+                <th className="py-3 px-4 text-right">Total Payable</th>
+                <th className="py-3 px-4 text-right">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-mono">
+              {filtered.map((inv) => (
+                <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-3.5 px-4 font-bold text-slate-900">
+                    {inv.invoiceNumber}
+                  </td>
+                  <td className="py-3.5 px-4 text-slate-600 font-sans text-xs">
+                    {new Date(inv.createdAt).toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3.5 px-4 font-sans font-bold text-slate-900">
+                    {inv.customerName}
+                  </td>
+                  <td className="py-3.5 px-4 text-slate-600">
+                    {inv.items.length} Piece(s)
+                  </td>
+                  <td className="py-3.5 px-4 text-right text-slate-700">
+                    ₹{inv.taxableAmount}
+                  </td>
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 text-sm">
+                    ₹{Number(inv.finalPayable).toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3.5 px-4 text-right font-sans">
+                    <Link
+                      to={`/bills/${inv.id}`}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold rounded text-xs transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View / Print</span>
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

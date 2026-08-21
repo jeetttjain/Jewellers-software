@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Scan,
@@ -14,7 +14,8 @@ import {
   Tag,
   Shield,
   Settings,
-  LogOut
+  LogOut,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -23,6 +24,18 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
+  // Prevent background scrolling when mobile drawer is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center justify-between px-3 py-2 text-xs font-medium rounded-md transition-colors ${
       isActive
@@ -32,6 +45,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
 
   const sidebarContent = (
     <div className="flex flex-col h-full w-full bg-white border-r border-surface-200 min-h-0 overflow-hidden">
+      {/* Mobile Drawer Header with Close Button (Hidden on Desktop) */}
+      <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-surface-200 bg-surface-50">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 bg-gold-500 rounded flex items-center justify-center font-bold text-surface-900 text-xs">
+            KJ
+          </div>
+          <span className="font-bold text-xs text-surface-900">Showroom Menu</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 rounded-md text-surface-500 hover:text-surface-900 hover:bg-surface-200 focus:outline-none"
+          aria-label="Close Navigation Drawer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* Navigation Scroll Area */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 space-y-6">
         {/* Primary Action Button: Rapid Scanner */}

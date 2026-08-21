@@ -37,12 +37,12 @@ export const PaymentsRegisterPage: React.FC = () => {
         </p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         {['ALL', 'UPI', 'CASH', 'CARD_CREDIT', 'NET_BANKING', 'LEDGER_CREDIT'].map((m) => (
           <button
             key={m}
             onClick={() => setModeFilter(m)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
               modeFilter === m ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-700'
             }`}
           >
@@ -52,44 +52,46 @@ export const PaymentsRegisterPage: React.FC = () => {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 bg-slate-50">
-              <th className="py-3 px-4">Receipt / Ref #</th>
-              <th className="py-3 px-4">Date & Time</th>
-              <th className="py-3 px-4">Customer</th>
-              <th className="py-3 px-4">Mode</th>
-              <th className="py-3 px-4 text-right">Settled Amount</th>
-              <th className="py-3 px-4">Cashier</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filtered.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
-                  {p.referenceNo || p.id}
-                </td>
-                <td className="py-3.5 px-4 text-slate-600">
-                  {new Date(p.createdAt).toLocaleString('en-IN')}
-                </td>
-                <td className="py-3.5 px-4 font-bold text-slate-900">
-                  {p.customerName}
-                </td>
-                <td className="py-3.5 px-4">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800">
-                    {p.mode}
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 text-sm">
-                  ₹{Number(p.amount).toLocaleString('en-IN')}
-                </td>
-                <td className="py-3.5 px-4 text-slate-500">
-                  {p.createdByName || 'Pooja Sharma'}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 bg-slate-50">
+                <th className="py-3 px-4">Receipt / Ref #</th>
+                <th className="py-3 px-4">Date & Time</th>
+                <th className="py-3 px-4">Customer</th>
+                <th className="py-3 px-4">Mode</th>
+                <th className="py-3 px-4 text-right">Settled Amount</th>
+                <th className="py-3 px-4">Cashier</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((p) => (
+                <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                    {p.referenceNo || p.id}
+                  </td>
+                  <td className="py-3.5 px-4 text-slate-600">
+                    {new Date(p.createdAt).toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3.5 px-4 font-bold text-slate-900">
+                    {p.customerName}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800">
+                      {p.mode}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900 text-sm">
+                    ₹{Number(p.amount).toLocaleString('en-IN')}
+                  </td>
+                  <td className="py-3.5 px-4 text-slate-500">
+                    {p.createdByName || 'Pooja Sharma'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -88,13 +88,13 @@ export const ReturnsTerminalPage: React.FC = () => {
         </h1>
       </div>
 
-      <form onSubmit={handleReturnSubmit} className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-md space-y-5 text-xs">
+      <form onSubmit={handleReturnSubmit} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-8 shadow-md space-y-5 text-xs">
         <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900">
           <ShieldAlert className="w-5 h-5 text-amber-700 flex-shrink-0" />
           <span>All returns create immutable credit notes and adjust stock ledgers automatically.</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Original Invoice # *</label>
             <input
@@ -158,7 +158,7 @@ export const ReturnsTerminalPage: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Refund Base Value (₹) *</label>
             <input
@@ -183,7 +183,7 @@ export const ReturnsTerminalPage: React.FC = () => {
         {/* Restock Routing */}
         <div>
           <label className="block font-semibold text-slate-700 mb-1">Physical Destination of Piece</label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setRestockDestination(ReturnRestockDestination.BACK_TO_STOCK)}

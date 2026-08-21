@@ -119,13 +119,13 @@ export const InvoiceConfirmationPage: React.FC = () => {
           </div>
 
           {/* Billed To Customer */}
-          <div className="grid grid-cols-2 gap-6 text-xs p-4 bg-slate-50 rounded-xl border border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 text-xs p-4 bg-slate-50 rounded-xl border border-slate-100">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Customer / Billed To:</span>
               <div className="font-bold text-sm text-slate-900">{invoice.customerName}</div>
               <div className="text-slate-600 font-mono">{invoice.customerMobile}</div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               {invoice.customerPan && (
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Customer PAN Number</span>
@@ -137,7 +137,7 @@ export const InvoiceConfirmationPage: React.FC = () => {
 
           {/* Items Table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[700px] text-left text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-800 text-[10px] uppercase font-bold text-slate-600">
                   <th className="py-2.5 px-2">#</th>
@@ -177,7 +177,7 @@ export const InvoiceConfirmationPage: React.FC = () => {
           </div>
 
           {/* Totals Summary & Signatures */}
-          <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-200 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 pt-4 border-t border-slate-200 text-xs">
             <div className="space-y-4">
               <div className="text-[11px] text-slate-600 leading-relaxed border p-3 rounded-lg border-slate-200">
                 <span className="font-bold block text-slate-900 mb-1">Terms & Hallmarking Guarantee:</span>

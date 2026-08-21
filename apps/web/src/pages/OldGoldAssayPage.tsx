@@ -76,7 +76,7 @@ export const OldGoldAssayPage: React.FC = () => {
         </h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-md space-y-6 text-xs">
+      <form onSubmit={handleSubmit} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-8 shadow-md space-y-6 text-xs">
         {/* Customer Info */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -171,7 +171,7 @@ export const OldGoldAssayPage: React.FC = () => {
         </div>
 
         {/* Valuation Total Box */}
-        <div className="bg-slate-900 text-white rounded-xl p-5 flex items-center justify-between">
+        <div className="bg-slate-900 text-white rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <span className="text-[10px] text-slate-400 uppercase font-semibold">Total Scrap Valuation Voucher</span>
             <div className="text-2xl font-mono font-bold text-amber-400">
