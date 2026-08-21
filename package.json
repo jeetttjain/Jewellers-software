@@ -13,6 +13,7 @@
     "dev:api": "npm run dev --workspace=@jewellery-pos/api",
     "build": "npm run build --workspaces --if-present",
     "build:api": "npm run build --workspace=@jewellery-pos/shared --workspace=@jewellery-pos/validation --workspace=@jewellery-pos/api",
+    "build:web": "npm run build --workspace=@jewellery-pos/web",
     "start:api": "npm run start --workspace=@jewellery-pos/api",
     "test": "node node_modules/vitest/vitest.mjs run",
     "test:watch": "node node_modules/vitest/vitest.mjs",

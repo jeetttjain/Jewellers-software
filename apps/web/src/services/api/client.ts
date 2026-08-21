@@ -20,11 +20,23 @@ export class ApiError extends Error {
 }
 
 class ShowroomApiClient {
-  private baseUrl = '/api/v1';
+  private getBaseUrl(): string {
+    const envUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || '';
+    if (envUrl && typeof envUrl === 'string' && envUrl.trim()) {
+      const trimmed = envUrl.trim().replace(/\/+$/, '');
+      return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`;
+    }
+    return '/api/v1';
+  }
 
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const url = new URL(`${this.baseUrl}${cleanEndpoint}`, window.location.origin);
+    const baseUrl = this.getBaseUrl();
+    const isAbsolute = baseUrl.startsWith('http://') || baseUrl.startsWith('https://');
+    const url = isAbsolute
+      ? new URL(`${baseUrl}${cleanEndpoint}`)
+      : new URL(`${baseUrl}${cleanEndpoint}`, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
@@ -32,7 +44,7 @@ class ShowroomApiClient {
         }
       });
     }
-    return url.pathname + url.search;
+    return isAbsolute ? url.toString() : url.pathname + url.search;
   }
 
   public async get<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
