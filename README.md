@@ -49,7 +49,8 @@ npm run dev
 ```bash
 npm test
 ```
-
+Demo Owner PIN: 1234
+Demo Cashier PIN: 5678
 ---
 
 ## 📁 Repository Structure
